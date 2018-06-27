@@ -27,34 +27,33 @@ from .node import *
 def blender_scene(gltf_scene):
     # Create a new scene only if not already exists in .blend file
     # TODO : put in current scene instead ?
-        if self.name not in [scene.name for scene in bpy.data.scenes]:
-            if self.name:
-                scene = bpy.data.scenes.new(self.name)
+        if gltf_scene.name not in [scene.name for scene in bpy.data.scenes]:
+            if gltf_scene.name:
+                scene = bpy.data.scenes.new(gltf_scene.name)
             else:
                 scene = bpy.data.scenes.new('Scene')
             scene.render.engine = "CYCLES"
 
-            self.gltf.blender.set_scene(scene.name)
+            gltf_scene.gltf.blender.set_scene(scene.name)
         else:
-            self.gltf.blender.set_scene(self.name)
-
-        for node in self.nodes.values():
+            gltf_scene.gltf.blender.set_scene(gltf_scene.name)
+        for node in gltf_scene.nodes.values():
             if node.root:
-                node.blender_create(None) # None => No parent
+                blender_node(node, None) # None => No parent
 
         # Now that all mesh / bones are created, create vertex groups on mesh
-        for armature in self.gltf.skins.values():
+        for armature in gltf_scene.gltf.skins.values():
             armature.create_vertex_groups()
 
-        for armature in self.gltf.skins.values():
+        for armature in gltf_scene.gltf.skins.values():
             armature.assign_vertex_groups()
 
-        for armature in self.gltf.skins.values():
+        for armature in gltf_scene.gltf.skins.values():
             armature.create_armature_modifiers()
 
-        for node in self.nodes.values():
-            if node.root:
-                node.animation.blender_anim()
+        # for node in gltf_scene.nodes.values():
+        #     if node.root:
+        #         node.animation.blender_anim()
 
 
     # TODO create blender for other scenes
