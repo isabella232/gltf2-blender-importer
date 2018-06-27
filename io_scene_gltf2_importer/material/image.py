@@ -21,7 +21,6 @@
  * This development is done in strong collaboration with Airbus Defence & Space
  """
 
-import bpy
 import os
 import base64
 import tempfile

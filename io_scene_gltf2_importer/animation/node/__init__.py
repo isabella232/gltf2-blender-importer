@@ -21,6 +21,26 @@
  * This development is done in strong collaboration with Airbus Defence & Space
  """
 
-from .animation_data import *
-from .animation_bone import *
-from .animation_node import *
+class AnimationData():
+    def __init__(self, node, gltf):
+        self.node = node
+        self.gltf = gltf
+        self.anims = {}
+
+    def set_anim(self, channel):
+        if channel.anim.index not in self.anims.keys():
+            self.anims[channel.anim.index] = []
+        self.anims[channel.anim.index].append(channel)
+
+    def set_interpolation(self, interpolation, kf):
+        if interpolation == "LINEAR":
+            kf.interpolation = 'LINEAR'
+        elif interpolation == "STEP":
+            kf.interpolation = 'CONSTANT'
+        elif interpolation == "CATMULLROMSPLINE":
+            kf.interpolation = 'BEZIER' #TODO
+        elif interpolation == "CUBICSPLINE":
+            kf.interpolation = 'BEZIER' #TODO
+        else:
+            self.gltf.log.error("Unknown interpolation : " + self.interpolation)
+            kf.interpolation = 'BEZIER'

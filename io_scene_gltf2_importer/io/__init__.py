@@ -44,8 +44,6 @@ class glTFImporter():
         self.filename = filename
         self.other_scenes = []
 
-        self.convert = Conversion()
-
         log = Log(loglevel)
         self.log = log.logger
         self.log_handler = log.hdlr
@@ -227,14 +225,6 @@ class glTFImporter():
                 return True, skin.index
 
         return is_joint, None
-
-
-    def blender_create(self):
-        self.scene.blender_create()
-
-        for scene in self.other_scenes:
-            scene.blender_create()
-
 
     def debug_missing(self):
         keys = [

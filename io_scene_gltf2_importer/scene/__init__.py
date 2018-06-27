@@ -21,8 +21,6 @@
  * This development is done in strong collaboration with Airbus Defence & Space
  """
 
-import bpy
-
 from ..node import *
 
 class Scene():
@@ -51,43 +49,6 @@ class Scene():
                 # skin.bones.insert(0, skin.root)
                 self.nodes[skin.root].is_joint = True
                 self.nodes[skin.root].skin_id = skin.index
-
-    def blender_create(self):
-    # Create a new scene only if not already exists in .blend file
-    # TODO : put in current scene instead ?
-        if self.name not in [scene.name for scene in bpy.data.scenes]:
-            if self.name:
-                scene = bpy.data.scenes.new(self.name)
-            else:
-                scene = bpy.data.scenes.new('Scene')
-            scene.render.engine = "CYCLES"
-
-            self.gltf.blender.set_scene(scene.name)
-        else:
-            self.gltf.blender.set_scene(self.name)
-
-        for node in self.nodes.values():
-            if node.root:
-                node.blender_create(None) # None => No parent
-
-        # Now that all mesh / bones are created, create vertex groups on mesh
-        for armature in self.gltf.skins.values():
-            armature.create_vertex_groups()
-
-        for armature in self.gltf.skins.values():
-            armature.assign_vertex_groups()
-
-        for armature in self.gltf.skins.values():
-            armature.create_armature_modifiers()
-
-        for node in self.nodes.values():
-            if node.root:
-                node.animation.blender_anim()
-
-
-    # TODO create blender for other scenes
-
-
 
     def debug_missing(self):
         keys = [

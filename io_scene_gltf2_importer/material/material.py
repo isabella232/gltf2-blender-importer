@@ -21,7 +21,6 @@
  * This development is done in strong collaboration with Airbus Defence & Space
  """
 
-import bpy
 from .pbr import *
 from .map import *
 from .extensions import *

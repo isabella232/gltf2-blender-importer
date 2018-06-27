@@ -20,9 +20,6 @@
  * ***** END GPL LICENSE BLOCK *****
  * This development is done in strong collaboration with Airbus Defence & Space
  """
-
-import bpy
-
 class Camera():
     def __init__(self, index, name, json, gltf):
         self.index = index
@@ -50,27 +47,6 @@ class Camera():
                     self.xmag = self.json[self.type]['xmag']
                 if 'ymag' in self.json[self.type].keys():
                     self.ymag = self.json[self.type]['ymag']
-
-    def create_blender(self):
-        if not self.name:
-            self.name = "Camera"
-
-        cam = bpy.data.cameras.new(self.name)
-
-        # Blender create a perspective camera by default
-        if self.type == "orthographic":
-            cam.type = "ORTHO"
-
-        if hasattr(self, "znear"):
-            cam.clip_start = self.znear
-
-        if hasattr(self, "zfar"):
-            cam.clip_end = self.zfar
-
-
-        obj = bpy.data.objects.new(self.name, cam)
-        bpy.data.scenes[self.gltf.blender.scene].objects.link(obj)
-        return obj
 
     def debug_missing(self):
         keys = [
