@@ -33,9 +33,3 @@ class OcclusionMap(Map):
             self.create_blender_cycles(mat_name)
         else:
             pass #TODO for internal / Eevee in future 2.8
-
-    def create_blender_cycles(self, mat_name):
-        self.texture.blender_create()
-
-        # Pack texture, but doesn't use it for now. Occlusion is calculated from Cycles.
-        bpy.data.images[self.texture.image.blender_image_name].use_fake_user = True

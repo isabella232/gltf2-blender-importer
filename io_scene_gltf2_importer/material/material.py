@@ -39,7 +39,6 @@ class Material():
         self.occlusionmap = None
 
     def read(self):
-
         # If no index, this is the default material
         if self.index is None:
             self.pbr = Pbr(None, self.gltf)
