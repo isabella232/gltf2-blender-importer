@@ -26,6 +26,7 @@
 import bpy
 from .utils import Conversion
 from .mesh import *
+from .rig import *
 
 from mathutils import Matrix, Vector, Quaternion
 
@@ -33,6 +34,9 @@ def blender_node(gltf_node, parent):
     def set_transforms(gltf_node, obj, parent):
         if hasattr(gltf_node, 'matrix'):
             obj.matrix_world = Conversion.matrix(gltf_node.matrix)
+        elif gltf_node.is_joint:
+            delta = Quaternion((0.7071068286895752, 0.7071068286895752, 0.0, 0.0))
+            obj.matrix_world = Conversion.get_node_matrix(gltf_node) * delta.inverted().to_matrix().to_4x4()
         else:
             obj.location = Conversion.location(gltf_node.translation)
             obj.rotation_mode = 'QUATERNION'
@@ -46,8 +50,8 @@ def blender_node(gltf_node, parent):
         # for node in gltf_node.gltf.scene.nodes.values(): # TODO if parent is in another scene
         #     if node.index == parent:
         #         if node.is_joint == True:
-        #             delta = Quaternion((0.7071068286895752, 0.7071068286895752, 0.0, 0.0))
-        #             obj.matrix_world = gltf_node.transform * delta.inverted().to_matrix().to_4x4()
+        #             
+        #             
         #             return
         #         else:
         #             obj.matrix_world = gltf_node.transform
@@ -124,21 +128,21 @@ def blender_node(gltf_node, parent):
     #     return
 
 
-    # if gltf_node.is_joint:
-    #     if gltf_node.name:
-    #         gltf_node.gltf.log.info("Blender create Bone node " + gltf_node.name)
-    #     else:
-    #         gltf_node.gltf.log.info("Blender create Bone node")
-    #     # Check if corresponding armature is already created, create it if needed
-    #     if gltf_node.gltf.skins[gltf_node.skin_id].blender_armature_name is None:
-    #         gltf_node.gltf.skins[gltf_node.skin_id].create_blender_armature(parent)
+    if gltf_node.is_joint:
+        if gltf_node.name:
+            gltf_node.gltf.log.info("Blender create Bone node " + gltf_node.name)
+        else:
+            gltf_node.gltf.log.info("Blender create Bone node")
+        # Check if corresponding armature is already created, create it if needed
+        if gltf_node.gltf.skins[gltf_node.skin_id].blender_armature_name is None:
+           blender_armature(gltf_node.gltf.skins[gltf_node.skin_id], parent)
 
-    #     gltf_node.gltf.skins[gltf_node.skin_id].create_bone(gltf_node, parent)
+        blender_bone(gltf_node.gltf.skins[gltf_node.skin_id], gltf_node, parent)
 
-    #     for child in gltf_node.children:
-    #         blender_node(child, gltf_node.index)
+        for child in gltf_node.children:
+            blender_node(child, gltf_node.index)
 
-    #     return
+        return
 
     # No mesh, no camera. For now, create empty #TODO
     if gltf_node.name:

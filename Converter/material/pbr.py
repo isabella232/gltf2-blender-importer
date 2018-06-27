@@ -24,15 +24,7 @@
 import bpy
 from .texture import *
 
-def blender_pbr(current, mat_name):
-    engine = bpy.context.scene.render.engine
-    if engine == 'CYCLES':
-        create_blender_cycles(current, mat_name)
-    # else:
-    #     pass #TODO for internal / Eevee in future 2.8
-
-
-def create_blender_cycles(current, mat_name):
+def create_blender_cycles(gltf_pbr, mat_name):
     material = bpy.data.materials[mat_name]
     material.use_nodes = True
     node_tree = material.node_tree
@@ -49,14 +41,14 @@ def create_blender_cycles(current, mat_name):
     principled = node_tree.nodes.new('ShaderNodeBsdfPrincipled')
     principled.location = 0,0
 
-    if current.color_type == current.SIMPLE:
+    if gltf_pbr.color_type == gltf_pbr.SIMPLE:
 
-        if not current.vertex_color:
+        if not gltf_pbr.vertex_color:
 
             # change input values
-            principled.inputs[0].default_value = current.baseColorFactor
-            principled.inputs[5].default_value = current.metallicFactor #TODO : currently set metallic & specular in same way
-            principled.inputs[7].default_value = current.roughnessFactor
+            principled.inputs[0].default_value = gltf_pbr.baseColorFactor
+            principled.inputs[5].default_value = gltf_pbr.metallicFactor #TODO : gltf_pbrly set metallic & specular in same way
+            principled.inputs[7].default_value = gltf_pbr.roughnessFactor
 
         else:
             # Create attribute node to get COLOR_0 data
@@ -64,16 +56,16 @@ def create_blender_cycles(current, mat_name):
             attribute_node.attribute_name = 'COLOR_0'
             attribute_node.location = -500,0
 
-            principled.inputs[5].default_value = current.metallicFactor #TODO : currently set metallic & specular in same way
-            principled.inputs[7].default_value = current.roughnessFactor
+            principled.inputs[5].default_value = gltf_pbr.metallicFactor #TODO : gltf_pbrly set metallic & specular in same way
+            principled.inputs[7].default_value = gltf_pbr.roughnessFactor
 
             # links
             node_tree.links.new(principled.inputs[0], attribute_node.outputs[1])
 
-    elif current.color_type == current.TEXTURE_FACTOR:
+    elif gltf_pbr.color_type == gltf_pbr.TEXTURE_FACTOR:
 
         #TODO alpha ?
-        if current.vertex_color:
+        if gltf_pbr.vertex_color:
             # TODO tree locations
             # Create attribute / separate / math nodes
             attribute_node = node_tree.nodes.new('ShaderNodeAttribute')
@@ -89,11 +81,11 @@ def create_blender_cycles(current, mat_name):
             math_vc_B = node_tree.nodes.new('ShaderNodeMath')
             math_vc_B.operation = 'MULTIPLY'
 
-        blender_texture(current.baseColorTexture)
+        blender_texture(gltf_pbr.baseColorTexture)
 
         # create UV Map / Mapping / Texture nodes / separate & math and combine
         text_node = node_tree.nodes.new('ShaderNodeTexImage')
-        text_node.image = bpy.data.images[current.baseColorTexture.image.blender_image_name]
+        text_node.image = bpy.data.images[gltf_pbr.baseColorTexture.image.blender_image_name]
         text_node.location = -1000,500
 
         combine = node_tree.nodes.new('ShaderNodeCombineRGB')
@@ -102,17 +94,17 @@ def create_blender_cycles(current, mat_name):
         math_R  = node_tree.nodes.new('ShaderNodeMath')
         math_R.location = -500, 750
         math_R.operation = 'MULTIPLY'
-        math_R.inputs[1].default_value = current.baseColorFactor[0]
+        math_R.inputs[1].default_value = gltf_pbr.baseColorFactor[0]
 
         math_G  = node_tree.nodes.new('ShaderNodeMath')
         math_G.location = -500, 500
         math_G.operation = 'MULTIPLY'
-        math_G.inputs[1].default_value = current.baseColorFactor[1]
+        math_G.inputs[1].default_value = gltf_pbr.baseColorFactor[1]
 
         math_B  = node_tree.nodes.new('ShaderNodeMath')
         math_B.location = -500, 250
         math_B.operation = 'MULTIPLY'
-        math_B.inputs[1].default_value = current.baseColorFactor[2]
+        math_B.inputs[1].default_value = gltf_pbr.baseColorFactor[2]
 
         separate = node_tree.nodes.new('ShaderNodeSeparateRGB')
         separate.location = -750, 500
@@ -122,11 +114,11 @@ def create_blender_cycles(current, mat_name):
 
         uvmap = node_tree.nodes.new('ShaderNodeUVMap')
         uvmap.location = -2000, 500
-        uvmap["gltf2_texcoord"] = current.baseColorTexture.texcoord # Set custom flag to retrieve TexCoord
+        uvmap["gltf2_texcoord"] = gltf_pbr.baseColorTexture.texcoord # Set custom flag to retrieve TexCoord
         # UV Map will be set after object/UVMap creation
 
         # Create links
-        if current.vertex_color:
+        if gltf_pbr.vertex_color:
             node_tree.links.new(separate_vertex_color.inputs[0], attribute_node.outputs[0])
             node_tree.links.new(math_vc_R.inputs[1], separate_vertex_color.outputs[0])
             node_tree.links.new(math_vc_G.inputs[1], separate_vertex_color.outputs[1])
@@ -155,12 +147,12 @@ def create_blender_cycles(current, mat_name):
 
         node_tree.links.new(principled.inputs[0], combine.outputs[0])
 
-    elif current.color_type == current.TEXTURE:
+    elif gltf_pbr.color_type == gltf_pbr.TEXTURE:
 
-        blender_texture(current.baseColorTexture)
+        blender_texture(gltf_pbr.baseColorTexture)
 
         #TODO alpha ?
-        if current.vertex_color:
+        if gltf_pbr.vertex_color:
             # Create attribute / separate / math nodes
             attribute_node = node_tree.nodes.new('ShaderNodeAttribute')
             attribute_node.attribute_name = 'COLOR_0'
@@ -190,28 +182,28 @@ def create_blender_cycles(current, mat_name):
 
         # create UV Map / Mapping / Texture nodes / separate & math and combine
         text_node = node_tree.nodes.new('ShaderNodeTexImage')
-        text_node.image = bpy.data.images[current.baseColorTexture.image.blender_image_name]
-        if current.vertex_color:
+        text_node.image = bpy.data.images[gltf_pbr.baseColorTexture.image.blender_image_name]
+        if gltf_pbr.vertex_color:
             text_node.location = -2000,500
         else:
             text_node.location = -500,500
 
         mapping = node_tree.nodes.new('ShaderNodeMapping')
-        if current.vertex_color:
+        if gltf_pbr.vertex_color:
             mapping.location = -2500,500
         else:
             mapping.location = -1500,500
 
         uvmap = node_tree.nodes.new('ShaderNodeUVMap')
-        if current.vertex_color:
+        if gltf_pbr.vertex_color:
             uvmap.location = -3000,500
         else:
             uvmap.location = -2000,500
-        uvmap["gltf2_texcoord"] = current.baseColorTexture.texcoord # Set custom flag to retrieve TexCoord
+        uvmap["gltf2_texcoord"] = gltf_pbr.baseColorTexture.texcoord # Set custom flag to retrieve TexCoord
         # UV Map will be set after object/UVMap creation
 
         # Create links
-        if current.vertex_color:
+        if gltf_pbr.vertex_color:
             node_tree.links.new(separate_vertex_color.inputs[0], attribute_node.outputs[0])
 
             node_tree.links.new(math_vc_R.inputs[1], separate_vertex_color.outputs[0])
@@ -240,14 +232,14 @@ def create_blender_cycles(current, mat_name):
 
 
     # Says metallic, but it means metallic & Roughness values
-    if current.metallic_type == current.SIMPLE:
-        principled.inputs[4].default_value = current.metallicFactor
-        principled.inputs[7].default_value = current.roughnessFactor
+    if gltf_pbr.metallic_type == gltf_pbr.SIMPLE:
+        principled.inputs[4].default_value = gltf_pbr.metallicFactor
+        principled.inputs[7].default_value = gltf_pbr.roughnessFactor
 
-    elif current.metallic_type == current.TEXTURE:
-        blender_texture(current.metallicRoughnessTexture)
+    elif gltf_pbr.metallic_type == gltf_pbr.TEXTURE:
+        blender_texture(gltf_pbr.metallicRoughnessTexture)
         metallic_text = node_tree.nodes.new('ShaderNodeTexImage')
-        metallic_text.image = bpy.data.images[current.metallicRoughnessTexture.image.blender_image_name]
+        metallic_text.image = bpy.data.images[gltf_pbr.metallicRoughnessTexture.image.blender_image_name]
         metallic_text.color_space = 'NONE'
         metallic_text.location = -500,0
 
@@ -259,7 +251,7 @@ def create_blender_cycles(current, mat_name):
 
         metallic_uvmap = node_tree.nodes.new('ShaderNodeUVMap')
         metallic_uvmap.location = -1500,0
-        metallic_uvmap["gltf2_texcoord"] = current.metallicRoughnessTexture.texcoord # Set custom flag to retrieve TexCoord
+        metallic_uvmap["gltf2_texcoord"] = gltf_pbr.metallicRoughnessTexture.texcoord # Set custom flag to retrieve TexCoord
 
         # links
         node_tree.links.new(metallic_separate.inputs[0], metallic_text.outputs[0])
@@ -269,12 +261,12 @@ def create_blender_cycles(current, mat_name):
         node_tree.links.new(metallic_mapping.inputs[0], metallic_uvmap.outputs[0])
         node_tree.links.new(metallic_text.inputs[0], metallic_mapping.outputs[0])
 
-    elif current.metallic_type == current.TEXTURE_FACTOR:
+    elif gltf_pbr.metallic_type == gltf_pbr.TEXTURE_FACTOR:
 
-        blender_texture(current.metallicRoughnessTexture)
+        blender_texture(gltf_pbr.metallicRoughnessTexture)
 
         metallic_text = node_tree.nodes.new('ShaderNodeTexImage')
-        metallic_text.image = bpy.data.images[current.metallicRoughnessTexture.image.blender_image_name]
+        metallic_text.image = bpy.data.images[gltf_pbr.metallicRoughnessTexture.image.blender_image_name]
         metallic_text.color_space = 'NONE'
         metallic_text.location = -1000,0
 
@@ -283,12 +275,12 @@ def create_blender_cycles(current, mat_name):
 
         metallic_math     = node_tree.nodes.new('ShaderNodeMath')
         metallic_math.operation = 'MULTIPLY'
-        metallic_math.inputs[1].default_value = current.metallicFactor
+        metallic_math.inputs[1].default_value = gltf_pbr.metallicFactor
         metallic_math.location = -250,100
 
         roughness_math = node_tree.nodes.new('ShaderNodeMath')
         roughness_math.operation = 'MULTIPLY'
-        roughness_math.inputs[1].default_value = current.roughnessFactor
+        roughness_math.inputs[1].default_value = gltf_pbr.roughnessFactor
         roughness_math.location = -250,-100
 
         metallic_mapping = node_tree.nodes.new('ShaderNodeMapping')
@@ -296,7 +288,7 @@ def create_blender_cycles(current, mat_name):
 
         metallic_uvmap = node_tree.nodes.new('ShaderNodeUVMap')
         metallic_uvmap.location = -1500,0
-        metallic_uvmap["gltf2_texcoord"] = current.metallicRoughnessTexture.texcoord # Set custom flag to retrieve TexCoord
+        metallic_uvmap["gltf2_texcoord"] = gltf_pbr.metallicRoughnessTexture.texcoord # Set custom flag to retrieve TexCoord
 
 
         # links
@@ -315,3 +307,10 @@ def create_blender_cycles(current, mat_name):
 
     # link node to output
     node_tree.links.new(output_node.inputs[0], principled.outputs[0])
+
+def blender_pbr(gltf_pbr, mat_name):
+    engine = bpy.context.scene.render.engine
+    if engine == 'CYCLES':
+        create_blender_cycles(gltf_pbr, mat_name)
+    # else:
+    #     pass #TODO for internal / Eevee in future 2.8

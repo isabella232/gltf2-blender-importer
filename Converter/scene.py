@@ -23,6 +23,7 @@
 
 import bpy
 from .node import *
+from .animation import *
 
 def blender_scene(gltf_scene):
     # Create a new scene only if not already exists in .blend file
@@ -43,17 +44,17 @@ def blender_scene(gltf_scene):
 
         # Now that all mesh / bones are created, create vertex groups on mesh
         for armature in gltf_scene.gltf.skins.values():
-            armature.create_vertex_groups()
+            create_vertex_groups(armature)
 
         for armature in gltf_scene.gltf.skins.values():
-            armature.assign_vertex_groups()
+            assign_vertex_groups(armature)
 
         for armature in gltf_scene.gltf.skins.values():
-            armature.create_armature_modifiers()
+            create_armature_modifiers(armature)
 
-        # for node in gltf_scene.nodes.values():
-        #     if node.root:
-        #         node.animation.blender_anim()
+        for node in gltf_scene.nodes.values():
+            if node.root:
+                blender_animation(node.animation)
 
 
     # TODO create blender for other scenes

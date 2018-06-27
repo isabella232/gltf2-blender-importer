@@ -21,48 +21,45 @@
  * This development is done in strong collaboration with Airbus Defence & Space
  """
 
-from .map import *
+import bpy
+from .texture import *
 
-class NormalMap(Map):
-    def __init__(self, json, factor, gltf):
-        super(NormalMap, self).__init__(json, factor, gltf)
+def create_blender_normalmap_cycles(gltf_normalmap, mat_name):
+    material = bpy.data.materials[mat_name]
+    node_tree = material.node_tree
 
-    def create_blender(self, mat_name):
-        engine = bpy.context.scene.render.engine
-        if engine == 'CYCLES':
-            self.create_blender_cycles(mat_name)
-        else:
-            pass #TODO for internal / Eevee in future 2.8
+    blender_texture(gltf_normalmap.texture)
+    
+    # retrieve principled node and output node
+    principled = [node for node in node_tree.nodes if node.type == "BSDF_PRINCIPLED"][0]
 
-    def create_blender_cycles(self, mat_name):
-        material = bpy.data.materials[mat_name]
-        node_tree = material.node_tree
+    # add nodes
+    mapping = node_tree.nodes.new('ShaderNodeMapping')
+    mapping.location = -1000,-500
+    uvmap = node_tree.nodes.new('ShaderNodeUVMap')
+    uvmap.location = -1500, -500
+    uvmap["gltf2_texcoord"] = gltf_normalmap.texCoord # Set custom flag to retrieve TexCoord
 
-        self.texture.blender_create()
+    text  = node_tree.nodes.new('ShaderNodeTexImage')
+    text.image = bpy.data.images[gltf_normalmap.texture.image.blender_image_name]
+    text.color_space = 'NONE'
+    text.location = -500, -500
 
-        # retrieve principled node and output node
-        principled = [node for node in node_tree.nodes if node.type == "BSDF_PRINCIPLED"][0]
-
-        # add nodes
-        mapping = node_tree.nodes.new('ShaderNodeMapping')
-        mapping.location = -1000,-500
-        uvmap = node_tree.nodes.new('ShaderNodeUVMap')
-        uvmap.location = -1500, -500
-        uvmap["gltf2_texcoord"] = self.texCoord # Set custom flag to retrieve TexCoord
-
-        text  = node_tree.nodes.new('ShaderNodeTexImage')
-        text.image = bpy.data.images[self.texture.image.blender_image_name]
-        text.color_space = 'NONE'
-        text.location = -500, -500
-
-        normalmap_node = node_tree.nodes.new('ShaderNodeNormalMap')
-        normalmap_node.location = -250,-500
+    normalmap_node = node_tree.nodes.new('ShaderNodeNormalMap')
+    normalmap_node.location = -250,-500
 
 
-        # create links
-        node_tree.links.new(mapping.inputs[0], uvmap.outputs[0])
-        node_tree.links.new(text.inputs[0], mapping.outputs[0])
-        node_tree.links.new(normalmap_node.inputs[1], text.outputs[0])
+    # create links
+    node_tree.links.new(mapping.inputs[0], uvmap.outputs[0])
+    node_tree.links.new(text.inputs[0], mapping.outputs[0])
+    node_tree.links.new(normalmap_node.inputs[1], text.outputs[0])
 
-        # following  links will modify PBR node tree
-        node_tree.links.new(principled.inputs[17], normalmap_node.outputs[0])
+    # following  links will modify PBR node tree
+    node_tree.links.new(principled.inputs[17], normalmap_node.outputs[0])
+
+def blender_normalmap(gltf_normalmap, mat_name):
+    engine = bpy.context.scene.render.engine
+    if engine == 'CYCLES':
+        create_blender_normalmap_cycles(gltf_normalmap, mat_name)
+    else:
+        pass #TODO for internal / Eevee in future 2.8

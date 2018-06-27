@@ -1,5 +1,8 @@
 import bpy
 from .pbr import *
+from .emissivemap import *
+from .normalmap import *
+from .occlusionmap import *
 
 def blender_material(current):
     if current.name is not None:
@@ -13,18 +16,20 @@ def blender_material(current):
     # create pbr material
     blender_pbr(current.pbr, mat.name)
 
-    # # add emission map if needed
-    # if current.emissivemap:
-    #     current.emissivemap.create_blender(mat.name)
+    # add emission map if needed
+    if current.emissivemap:
+        blender_emissive(current.emissivemap, mat.name)
 
-    # # add normal map if needed
-    # if current.normalmap:
-    #     current.normalmap.create_blender(mat.name)
+    # add normal map if needed
+    if current.normalmap:
+        blender_normalmap(current.normalmap, mat.name)
 
-    # # add occlusion map if needed
-    # # will be pack, but not used
-    # if current.occlusionmap:
-    #     current.occlusionmap.create_blender(mat.name)
+    # add occlusion map if needed
+    # will be pack, but not used
+    if current.occlusionmap:
+        blender_occlusion(current.occlusionmap, mat.name)
+    
+
 
 def set_uvmap(current, prim, obj):
     node_tree = bpy.data.materials[current.blender_material].node_tree
