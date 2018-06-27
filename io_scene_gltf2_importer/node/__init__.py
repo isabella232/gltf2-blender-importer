@@ -47,7 +47,7 @@ class Node():
             self.name = None
             self.gltf.log.info("Node index " + str(self.index))
 
-        self.transform = self.get_transforms()
+        self.get_transforms()
 
         if 'mesh' in self.json.keys():
             self.mesh = Mesh(self.json['mesh'], self.gltf.json['meshes'][self.json['mesh']], self.gltf)
@@ -74,10 +74,15 @@ class Node():
             self.scene.nodes[child.index] = child
 
     def get_transforms(self):
-        pass
+        if 'matrix' in self.json.keys():
+            self.matrix = self.json['matrix']
+        else:
+            self.translation = self.json.get('translation', [0, 0, 0])
+            self.rotation = self.json.get('rotation', [0, 0, 0, 1])
+            self.scale = self.json.get('scale', [1, 1, 1])
 
         # if 'matrix' in self.json.keys():
-        #     return self.gltf.convert.matrix(self.json['matrix'])
+        #     return self.gltf.convert.matrix()
 
         # mat = Matrix()
 
@@ -100,6 +105,7 @@ class Node():
         #     mat = Matrix.Translation(Vector(self.gltf.convert.location(self.json['translation']))) * mat
 
         # return mat
+
 
     def debug_missing(self):
         keys = [
