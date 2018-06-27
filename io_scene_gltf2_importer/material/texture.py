@@ -21,7 +21,6 @@
  * This development is done in strong collaboration with Airbus Defence & Space
  """
 
-import bpy
 from .image import *
 
 class Texture():
@@ -40,9 +39,6 @@ class Texture():
             self.image = self.gltf.images[self.json['source']]
             self.image.read()
             self.image.debug_missing()
-
-    def blender_create(self):
-        self.image.blender_create()
 
     def debug_missing(self):
 

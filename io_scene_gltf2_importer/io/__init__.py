@@ -27,24 +27,11 @@ from ..scene import *
 from ..animation import *
 from ..util import *
 
-
-
-#TODO : to remove, is this class really needed?
-class BlenderData():
-    def __init__(self):
-        pass
-
-    def set_scene(self, scene_name):
-        self.scene = scene_name
-
-
 class glTFImporter():
 
     def __init__(self, filename, loglevel):
         self.filename = filename
         self.other_scenes = []
-
-        self.convert = Conversion()
 
         log = Log(loglevel)
         self.log = log.logger
@@ -62,8 +49,6 @@ class glTFImporter():
         ]
 
         self.load()
-
-        self.blender = BlenderData()
 
         self.fmt_char_dict = {}
         self.fmt_char_dict[5120] = 'b' # Byte
@@ -193,6 +178,7 @@ class glTFImporter():
             for anim in self.json['animations']:
                 animation = Animation(anim_idx, self.json['animations'][anim_idx], self)
                 animation.read()
+                print('READ')
                 animation.debug_missing()
                 self.animations[animation.index] = animation
                 anim_idx += 1
@@ -227,14 +213,6 @@ class glTFImporter():
                 return True, skin.index
 
         return is_joint, None
-
-
-    def blender_create(self):
-        self.scene.blender_create()
-
-        for scene in self.other_scenes:
-            scene.blender_create()
-
 
     def debug_missing(self):
         keys = [

@@ -39,9 +39,6 @@ class Map():
         else:
             self.texCoord = 0
 
-    def create_blender(self):
-        pass
-
     def debug_missing(self):
 
         keys = [
