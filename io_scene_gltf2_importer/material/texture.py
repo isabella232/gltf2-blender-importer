@@ -40,9 +40,6 @@ class Texture():
             self.image.read()
             self.image.debug_missing()
 
-    def blender_create(self):
-        self.image.blender_create()
-
     def debug_missing(self):
 
         keys = [

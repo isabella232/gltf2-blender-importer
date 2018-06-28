@@ -33,8 +33,6 @@ class Image():
         self.json  = json # Image json
         self.gltf  = gltf # Reference to global glTF instance
 
-        self.blender_image_name = None
-
     def read(self):
 
         if 'uri' in self.json.keys():
@@ -64,19 +62,6 @@ class Image():
         self.data = self.bufferView.read_binary_data()
 
         return
-
-    def blender_create(self):
-        # Create a temp image, pack, and delete image
-        tmp_image = tempfile.NamedTemporaryFile(delete=False)
-        tmp_image.write(self.data)
-        tmp_image.close()
-
-        blender_image = bpy.data.images.load(tmp_image.name)
-        blender_image.pack()
-        blender_image.name = "Image_" + str(self.index)
-        self.blender_image_name = blender_image.name
-        os.remove(tmp_image.name)
-
 
     def debug_missing(self):
         if self.index is None:

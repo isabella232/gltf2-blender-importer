@@ -32,7 +32,6 @@ class Primitive():
         self.attributes = {}
         self.mat = None
         self.targets = [] # shapekeys
-        self.blender_texcoord = {}
 
     def read(self):
         # reading attributes

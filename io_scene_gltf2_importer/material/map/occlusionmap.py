@@ -26,10 +26,3 @@ from .map import *
 class OcclusionMap(Map):
     def __init__(self, json, factor, gltf):
         super(OcclusionMap, self).__init__(json, factor, gltf)
-
-    def create_blender(self, mat_name):
-        engine = bpy.context.scene.render.engine
-        if engine == 'CYCLES':
-            self.create_blender_cycles(mat_name)
-        else:
-            pass #TODO for internal / Eevee in future 2.8

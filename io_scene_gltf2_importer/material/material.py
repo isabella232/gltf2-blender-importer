@@ -31,9 +31,6 @@ class Material():
         self.json = json # Material json
         self.gltf = gltf # Reference to global glTF instance
         self.name = None
-
-        self.blender_material = None
-
         self.emissivemap  = None
         self.normalmap    = None
         self.occlusionmap = None
