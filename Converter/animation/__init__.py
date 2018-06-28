@@ -22,6 +22,7 @@
  """
 
 import bpy
+from ..utils import Conversion
 from mathutils import Quaternion, Matrix
 
 def blender_animation(gltf_animation):
@@ -37,22 +38,23 @@ def blender_bone_anim(gltf_animation):
     delta = Quaternion((0.7071068286895752, 0.7071068286895752, 0.0, 0.0))
 
     for anim in gltf_animation.anims.keys():
-        if not gltf_animation.gltf.animations[anim].blender_action:
-            if gltf_animation.gltf.animations[anim].name:
-                name = gltf_animation.gltf.animations[anim].name
-            else:
-                name = "Animation_" + str(gltf_animation.gltf.animations[anim].index)
+        if gltf_animation.gltf.animations[anim].name:
+            name = gltf_animation.gltf.animations[anim].name + "_" + obj.name
+        else:
+            name = "Animation_" + str(gltf_animation.gltf.animations[anim].index) + "_" + obj.name
+        if name not in bpy.data.actions:
             action = bpy.data.actions.new(name)
-            gltf_animation.gltf.animations[anim].blender_action = action.name
+        else:
+            action = bpy.data.actions[name]
         if not obj.animation_data:
             obj.animation_data_create()
-        obj.animation_data.action = bpy.data.actions[gltf_animation.gltf.animations[anim].blender_action]
+        obj.animation_data.action = bpy.data.actions[action.name]
 
         for channel in gltf_animation.anims[anim]:
             if channel.path == "translation":
                 blender_path = "location"
                 for key in channel.data:
-                    transform = Matrix.Translation(gltf_animation.gltf.convert.location(list(key[1])))
+                    transform = Matrix.Translation(Conversion.location(list(key[1])))
                     if not gltf_animation.node.parent:
                         mat = transform * delta.to_matrix().to_4x4()
                     else:
@@ -78,7 +80,7 @@ def blender_bone_anim(gltf_animation):
             elif channel.path == "rotation":
                 blender_path = "rotation_quaternion"
                 for key in channel.data:
-                    transform = (gltf_animation.gltf.convert.quaternion(key[1])).to_matrix().to_4x4()
+                    transform = (Conversion.quaternion(key[1])).to_matrix().to_4x4()
                     if not gltf_animation.node.parent:
                         mat = transform * delta.to_matrix().to_4x4()
                     else:
@@ -104,7 +106,7 @@ def blender_bone_anim(gltf_animation):
             elif channel.path == "scale":
                 blender_path = "scale"
                 for key in channel.data:
-                    s = gltf_animation.gltf.convert.scale(list(key[1]))
+                    s = Conversion.scale(list(key[1]))
                     transform = Matrix([
                         [s[0], 0, 0, 0],
                         [0, s[1], 0, 0],
@@ -158,7 +160,7 @@ def blender_node_anim(gltf_animation):
                 if channel.path == "translation":
                     blender_path = "location"
                     for key in channel.data:
-                       obj.location = Vector(gltf_animation.gltf.convert.location(list(key[1])))
+                       obj.location = Vector(conversion.location(list(key[1])))
                        obj.keyframe_insert(blender_path, frame = key[0] * fps, group='location')
 
                     # Setting interpolation
@@ -169,7 +171,7 @@ def blender_node_anim(gltf_animation):
                 elif channel.path == "rotation":
                     blender_path = "rotation_quaternion"
                     for key in channel.data:
-                        obj.rotation_quaternion = gltf_animation.gltf.convert.quaternion(key[1])
+                        obj.rotation_quaternion = conversion.quaternion(key[1])
                         obj.keyframe_insert(blender_path, frame = key[0] * fps, group='rotation')
 
                     # Setting interpolation
@@ -181,7 +183,7 @@ def blender_node_anim(gltf_animation):
                 elif channel.path == "scale":
                     blender_path = "scale"
                     for key in channel.data:
-                        obj.scale = Vector(gltf_animation.gltf.convert.scale(list(key[1])))
+                        obj.scale = Vector(conversion.scale(list(key[1])))
                         obj.keyframe_insert(blender_path, frame = key[0] * fps, group='scale')
 
                     # Setting interpolation

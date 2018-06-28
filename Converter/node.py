@@ -32,6 +32,7 @@ from mathutils import Matrix, Vector, Quaternion
 
 def blender_node(gltf_node, parent):
     def set_transforms(gltf_node, obj, parent):
+        obj.rotation_mode = 'QUATERNION'
         if hasattr(gltf_node, 'matrix'):
             obj.matrix_world = Conversion.matrix(gltf_node.matrix)
         elif gltf_node.is_joint:
@@ -39,23 +40,8 @@ def blender_node(gltf_node, parent):
             obj.matrix_world = Conversion.get_node_matrix(gltf_node) * delta.inverted().to_matrix().to_4x4()
         else:
             obj.location = Conversion.location(gltf_node.translation)
-            obj.rotation_mode = 'QUATERNION'
             obj.rotation_quaternion = Conversion.quaternion(gltf_node.rotation)
             obj.scale = Conversion.scale(gltf_node.scale)
-
-        # if parent is None:
-        #     obj.matrix_world =  gltf_node.transform
-        #     return
-
-        # for node in gltf_node.gltf.scene.nodes.values(): # TODO if parent is in another scene
-        #     if node.index == parent:
-        #         if node.is_joint == True:
-        #             
-        #             
-        #             return
-        #         else:
-        #             obj.matrix_world = gltf_node.transform
-        #             return
 
     def set_blender_parent(gltf_node, obj, parent):
         pass
@@ -151,7 +137,7 @@ def blender_node(gltf_node, parent):
     else:
         gltf_node.gltf.log.info("Blender create Empty node")
         obj = bpy.data.objects.new("Node", None)
-    obj.rotation_mode = 'QUATERNION'
+        
     bpy.data.scenes[gltf_node.gltf.blender.scene].objects.link(obj)
     set_transforms(gltf_node, obj, parent)
     gltf_node.blender_object = obj.name

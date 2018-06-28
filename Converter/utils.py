@@ -28,7 +28,7 @@ class Conversion():
         if hasattr(gltf_node, 'matrix'):
             return Conversion.matrix(gltf_node.matrix)
         else:
-            return Conversion.matrix_from_trs(gltf_node.translation, gltf_node.rotation, gltf_node.scale)
+            return Conversion.matrix_from_trs(Conversion.location(gltf_node.translation), Conversion.quaternion(gltf_node.rotation), Conversion.scale(gltf_node.scale))
 
     def matrix_from_trs(translation, rotation, scale):
         mat = Matrix([
@@ -38,8 +38,8 @@ class Conversion():
             [0, 0, 0, 1]
         ])
 
-        mat = Conversion.matrix_quaternion(rotation).to_matrix().to_4x4() * mat
-        mat = Matrix.Translation(Vector(Conversion.location(translation))) * mat
+        mat = rotation.to_matrix().to_4x4() * mat
+        mat = Matrix.Translation(Vector(translation)) * mat
 
         return mat
 
@@ -52,7 +52,7 @@ class Conversion():
         rotation = mat_input.to_quaternion()
         location = mat_input.to_translation()
 
-        return Conversion.matrix_from_trs(location, rotation, s)
+        return Conversion.matrix_from_trs(Conversion.location(location), Conversion.matrix_quaternion(rotation), s)
 
     @staticmethod
     def quaternion(q):

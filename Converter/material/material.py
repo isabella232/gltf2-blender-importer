@@ -29,8 +29,6 @@ def blender_material(current):
     if current.occlusionmap:
         blender_occlusion(current.occlusionmap, mat.name)
     
-
-
 def set_uvmap(current, prim, obj):
     node_tree = bpy.data.materials[current.blender_material].node_tree
     uvmap_nodes =  [node for node in node_tree.nodes if node.type == 'UVMAP']
