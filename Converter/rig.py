@@ -33,7 +33,7 @@ def blender_armature(gltf_skin, parent):
 
     armature = bpy.data.armatures.new(name)
     obj = bpy.data.objects.new(name, armature)
-    bpy.data.scenes[gltf_skin.gltf.blender.scene].objects.link(obj)
+    bpy.data.scenes[gltf_skin.blender_scene].objects.link(obj)
     gltf_skin.blender_armature_name = obj.name
     if parent:
         obj.parent = bpy.data.objects[gltf_skin.gltf.scene.nodes[parent].blender_object]
@@ -62,7 +62,7 @@ def set_bone_transforms(gltf_bone, bone, node, parent):
     return bone.matrix
 
 def blender_bone(gltf_bone, node, parent):
-    scene = bpy.data.scenes[gltf_bone.gltf.blender.scene]
+    scene = bpy.data.scenes[gltf_bone.blender_scene]
     obj   = bpy.data.objects[gltf_bone.blender_armature_name]
 
     bpy.context.screen.scene = scene
@@ -87,13 +87,14 @@ def blender_bone(gltf_bone, node, parent):
 
     bpy.ops.object.mode_set(mode="OBJECT")
 
-def create_vertex_groups(gltf_skin):
-    obj = bpy.data.objects[gltf_skin.gltf.scene.nodes[gltf_skin.mesh_id].blender_object]
+def create_vertex_groups(gltf_skin, mesh_id):
+    obj = bpy.data.objects[gltf_skin.gltf.scene.nodes[mesh_id].blender_object]
+
     for bone in gltf_skin.bones:
         obj.vertex_groups.new(gltf_skin.gltf.scene.nodes[bone].blender_bone_name)
 
-def assign_vertex_groups(gltf_skin):
-    node = gltf_skin.gltf.scene.nodes[gltf_skin.mesh_id]
+def assign_vertex_groups(gltf_skin, mesh_id):
+    node = gltf_skin.gltf.scene.nodes[mesh_id]
     obj = bpy.data.objects[node.blender_object]
 
     offset = 0
@@ -127,8 +128,8 @@ def assign_vertex_groups(gltf_skin):
 
         offset = offset + prim.vertices_length
 
-def create_armature_modifiers(gltf_skin):
-    node = gltf_skin.gltf.scene.nodes[gltf_skin.mesh_id]
+def create_armature_modifiers(gltf_skin, mesh_id):
+    node = gltf_skin.gltf.scene.nodes[mesh_id]
     obj = bpy.data.objects[node.blender_object]
 
     for obj_sel in bpy.context.scene.objects:

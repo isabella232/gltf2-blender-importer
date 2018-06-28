@@ -23,7 +23,7 @@
 
 import bpy
 from ..utils import Conversion
-from mathutils import Quaternion, Matrix
+from mathutils import Quaternion, Matrix, Vector
 
 def blender_animation(gltf_animation):
     if gltf_animation.node.is_joint:
@@ -143,7 +143,7 @@ def blender_node_anim(gltf_animation):
     
     for anim in gltf_animation.anims.keys():
         print('ok')
-        if not gltf_animation.gltf.animations[anim].blender_action:
+        if not hasattr(gltf_animation.gltf.animations[anim], 'blender_action'):
             if gltf_animation.gltf.animations[anim].name:
                 name = gltf_animation.gltf.animations[anim].name
             else:
@@ -160,7 +160,7 @@ def blender_node_anim(gltf_animation):
                 if channel.path == "translation":
                     blender_path = "location"
                     for key in channel.data:
-                       obj.location = Vector(conversion.location(list(key[1])))
+                       obj.location = Vector(Conversion.location(list(key[1])))
                        obj.keyframe_insert(blender_path, frame = key[0] * fps, group='location')
 
                     # Setting interpolation
@@ -171,7 +171,7 @@ def blender_node_anim(gltf_animation):
                 elif channel.path == "rotation":
                     blender_path = "rotation_quaternion"
                     for key in channel.data:
-                        obj.rotation_quaternion = conversion.quaternion(key[1])
+                        obj.rotation_quaternion = Conversion.quaternion(key[1])
                         obj.keyframe_insert(blender_path, frame = key[0] * fps, group='rotation')
 
                     # Setting interpolation
@@ -183,7 +183,7 @@ def blender_node_anim(gltf_animation):
                 elif channel.path == "scale":
                     blender_path = "scale"
                     for key in channel.data:
-                        obj.scale = Vector(conversion.scale(list(key[1])))
+                        obj.scale = Vector(Conversion.scale(list(key[1])))
                         obj.keyframe_insert(blender_path, frame = key[0] * fps, group='scale')
 
                     # Setting interpolation
