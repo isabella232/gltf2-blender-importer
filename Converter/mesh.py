@@ -212,14 +212,14 @@ def blender_set_UV_in_mat(gltf_primitive, obj):
             set_uvmap(gltf_primitive.mat, gltf_primitive, obj)
         else:
             if gltf_primitive.mat.KHR_materials_pbrSpecularGlossiness.specgloss_type in [gltf_primitive.mat.KHR_materials_pbrSpecularGlossiness.TEXTURE, gltf_primitive.mat.KHR_materials_pbrSpecularGlossiness.TEXTURE_FACTOR]:
-                gltf_primitive.mat.set_uvmap(gltf_primitive, obj)
+                set_uvmap(gltf_primitive.mat, gltf_primitive, obj)
 
     else:
         if gltf_primitive.mat.pbr.color_type in [gltf_primitive.mat.pbr.TEXTURE, gltf_primitive.mat.pbr.TEXTURE_FACTOR] :
             set_uvmap(gltf_primitive.mat, gltf_primitive, obj)
         else:
             if gltf_primitive.mat.pbr.metallic_type in [gltf_primitive.mat.pbr.TEXTURE, gltf_primitive.mat.pbr.TEXTURE_FACTOR] :
-                gltf_primitive.mat.set_uvmap(gltf_primitive, obj)
+                set_uvmap(gltf_primitive.mat, gltf_primitive, obj)
 
 
 def blender_assign_material(gltf_primitive, obj, bm, offset, cpt_index_mat):

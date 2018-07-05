@@ -26,6 +26,7 @@ from .texture import *
 
 def create_blender_occlusion_cycles(gltf_occlusion, mat_name):
     # Pack texture, but doesn't use it for now. Occlusion is calculated from Cycles.
+    blender_texture(gltf_occlusion.texture)
     bpy.data.images[gltf_occlusion.texture.image.blender_image_name].use_fake_user = True
 
 def blender_occlusion(gltf_occlusion, mat_name):
