@@ -186,6 +186,8 @@ def blender_set_normals(gltf_primitive, mesh, offset):
                     else:
                         cpt_vert = vert_idx
                     mesh.vertices[vert_idx].normal = gltf_primitive.attributes['NORMAL']['result'][cpt_vert]
+            poly.use_smooth=True
+
     offset = offset + gltf_primitive.vertices_length
     return offset
 
