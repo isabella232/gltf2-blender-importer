@@ -52,7 +52,7 @@ class Conversion():
         rotation = mat_input.to_quaternion()
         location = mat_input.to_translation()
 
-        return Conversion.matrix_from_trs(Conversion.location(location), Conversion.matrix_quaternion(rotation), s)
+        return Conversion.matrix_from_trs(Conversion.location(location), Conversion.matrix_quaternion(rotation), Conversion.scale(s))
 
     @staticmethod
     def quaternion(q):
@@ -68,4 +68,4 @@ class Conversion():
     
     @staticmethod
     def scale(scale):
-        return scale # TODO test scale animation
+        return [scale[0], scale[2], scale[1]] # TODO test scale animation
