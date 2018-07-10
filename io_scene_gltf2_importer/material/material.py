@@ -84,6 +84,11 @@ class Material():
             self.occlusionmap.read()
             self.occlusionmap.debug_missing()
 
+        self.alphaMode = self.json.get('alphaMode', 'OPAQUE')
+        self.alphaCutoff = self.json.get('alphaCutoff', 0.5)
+
+        self.doubleSided = self.json.get('doubleSided', False)
+
     def use_vertex_color(self):
         if hasattr(self, 'KHR_materials_pbrSpecularGlossiness'):
             self.KHR_materials_pbrSpecularGlossiness.use_vertex_color()

@@ -42,6 +42,7 @@ def create_blender_normalmap_cycles(gltf_normalmap, mat_name):
 
     text  = node_tree.nodes.new('ShaderNodeTexImage')
     text.image = bpy.data.images[gltf_normalmap.texture.image.blender_image_name]
+    text.label = 'NORMAL MAP'
     text.color_space = 'NONE'
     text.location = -500, -500
 

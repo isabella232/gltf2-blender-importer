@@ -16,6 +16,9 @@ def blender_material(current):
     # create pbr material
     blender_pbr(current.pbr, mat.name)
 
+    if current.alphaMode != 'OPAQUE':
+        blender_alpha(current, mat.name)
+
     # add emission map if needed
     if current.emissivemap:
         blender_emissive(current.emissivemap, mat.name)
