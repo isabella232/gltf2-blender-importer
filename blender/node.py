@@ -148,6 +148,8 @@ def blender_node(gltf_node, parent, blender_scene):
     for child in gltf_node.children:
         blender_node(child, gltf_node.index, blender_scene)
 
+    return obj
+
 
 
 
