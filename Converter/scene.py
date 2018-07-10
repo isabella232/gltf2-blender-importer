@@ -25,7 +25,7 @@ import bpy
 from .node import *
 from .animation import *
 
-def blender_scene(gltf_scene, use_current=True, enable_animation=True):
+def blender_scene(gltf_scene, use_current=True, enable_animation=True, root_name=None):
     # Create a new scene only if not already exists in .blend file
     # TODO : put in current scene instead ?
 
@@ -44,7 +44,9 @@ def blender_scene(gltf_scene, use_current=True, enable_animation=True):
 
     for node in gltf_scene.nodes.values():
         if node.root:
-            blender_node(node, None, blender_scene_name) # None => No parent
+            obj = blender_node(node, None, blender_scene_name) # None => No parent
+            if root_name:
+                obj.name = root_name
 
     if enable_animation:
         # Now that all mesh / bones are created, create vertex groups on mesh
