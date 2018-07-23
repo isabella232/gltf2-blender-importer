@@ -22,6 +22,7 @@
  """
 
 from .pbr import *
+from .extensions.KHR_materials_pbrSpecularGlossiness import *
 from .map import *
 from .extensions import *
 
