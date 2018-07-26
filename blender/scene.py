@@ -48,6 +48,8 @@ def blender_scene(gltf_scene, use_current=True, enable_animation=True, root_name
             if root_name:
                 obj.name = root_name
 
+            obj.location = bpy.context.scene.cursor_location
+
     if enable_animation:
         # Now that all mesh / bones are created, create vertex groups on mesh
         for armature in gltf_scene.gltf.skins.values():
