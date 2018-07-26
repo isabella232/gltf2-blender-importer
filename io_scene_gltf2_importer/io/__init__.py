@@ -108,8 +108,8 @@ class glTFImporter():
 
         if not self.is_glb_format:
             self.content = None
-            with open(self.filename, 'r') as f:
-                content = f.read()
+            with open(self.filename, 'rb') as f:
+                content = f.read().decode('utf-8')
                 self.json = json.loads(content)
 
         else:

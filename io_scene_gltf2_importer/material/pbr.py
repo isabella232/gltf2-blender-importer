@@ -79,12 +79,12 @@ class Pbr():
 
         if 'metallicFactor' in self.json.keys():
             self.metallicFactor = self.json['metallicFactor']
-            if self.metallic_type == self.TEXTURE and self.metallicFactor != 1.0 and self.roughnessFactor != 1.0:
+            if self.metallic_type == self.TEXTURE and (self.metallicFactor != 1.0 or self.roughnessFactor != 1.0):
                 self.metallic_type = self.TEXTURE_FACTOR
 
         if 'roughnessFactor' in self.json.keys():
             self.roughnessFactor = self.json['roughnessFactor']
-            if self.metallic_type == self.TEXTURE and self.roughnessFactor != 1.0 and self.metallicFactor != 1.0:
+            if self.metallic_type == self.TEXTURE and (self.roughnessFactor != 1.0 or self.metallicFactor != 1.0):
                 self.metallic_type = self.TEXTURE_FACTOR
 
     def use_vertex_color(self):

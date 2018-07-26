@@ -607,12 +607,16 @@ def unzip_archive(archive_path):
     if os.path.exists(archive_path):
         import zipfile
         zip_ref = zipfile.ZipFile(archive_path, 'r')
+
         extract_dir = os.path.dirname(archive_path)
         zip_ref.extractall(extract_dir)
         zip_ref.close()
+
         gltf_file = os.path.join(extract_dir, 'scene.gltf')
-        with open(gltf_file, 'r') as f:
-            content = f.read()
+
+        with open(gltf_file, 'rb') as f:
+            safe_bytes = f.read()
+            content = safe_bytes.decode('utf-8')
 
         return gltf_file
     else:
@@ -1133,8 +1137,15 @@ def register():
     bpy.types.WindowManager.sketchfab_browser = PointerProperty(
                 type=SketchfabBrowserProps)
 
+
+    bpy.utils.register_class(SketchfabBrowserPropsProxy)
+
+    bpy.types.WindowManager.sketchfab_browser_proxy = PointerProperty(
+                type=SketchfabBrowserPropsProxy)
+
     bpy.types.WindowManager.sketchfab_api = PointerProperty(
-                type=SketchfabLoginProps)
+                type=SketchfabLoginProps,
+                )
 
     bpy.types.WindowManager.result_previews = EnumProperty(items=list_current_results)
 
