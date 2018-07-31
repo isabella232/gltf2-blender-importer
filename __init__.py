@@ -6,8 +6,8 @@ import threading
 import requests
 import os
 
-from .io_scene_gltf2_importer import *
-from .Converter import *
+from io_scene_gltf2_importer import *
+from Converter import *
 from bpy.props import (StringProperty,
                        EnumProperty,
                        BoolProperty,
@@ -15,6 +15,9 @@ from bpy.props import (StringProperty,
 
 
 ADDON_NAME = 'io_sketchfab'
+GITHUB_REPOSITORY_URL = 'https://github.com/sketchfab/gltf2-blender-importer'
+GITHUB_REPOSITORY_API_URL = 'https://api.github.com/repos/sketchfab/gltf2-blender-importer'
+SKETCHFAB_REPORT_URL = 'https://help.sketchfab.com/hc/en-us/requests/new?type=exporters&subject=Blender+Plugin'
 
 bl_info = {
     'name': 'Sketchfab AssetBrowser',
@@ -26,9 +29,9 @@ bl_info = {
     'blender': (2, 7, 9),
     'location': 'View3D > Tools > Sketchfab',
     'warning': '',
-    'wiki_url': 'https://github.com/sketchfab/gltf2-blender-importer/releases',
-    'tracker_url': 'https://github.com/sketchfab/gltf2-blender-importer/issues',
-    'link': 'https://github.com/sketchfab/gltf2-blender-importer',
+    'wiki_url': '{}/releases'.format(GITHUB_REPOSITORY_URL),
+    'tracker_url': '{}/issues'.format(GITHUB_REPOSITORY_URL),
+    'link': GITHUB_REPOSITORY_URL,
     'support': 'COMMUNITY',
     'category': 'Add Mesh'
     }
@@ -48,6 +51,7 @@ DEFAULT_SEARCH = SKETCHFAB_SEARCH + \
 
 SKETCHFAB_ME = '{}/v3/me'.format(SKETCHFAB_URL)
 
+SKETCHFAB_PLUGIN_VERSION = '{}/releases'.format(GITHUB_REPOSITORY_API_URL)
 # PATH management
 SKFB_TEMP_DIR = os.path.join(bpy.context.user_preferences.filepaths.temporary_directory, 'sketchfab_downloads')
 SKFB_THUMB_DIR = os.path.join(SKFB_TEMP_DIR, 'thumbnails')
@@ -56,6 +60,8 @@ SKFB_MODEL_DIR = os.path.join(SKFB_TEMP_DIR, 'imports')
 # Settings
 THUMBNAIL_SIZE = (256, 512)
 preview_collection = {}
+
+PLUGIN_VERSION = str(bl_info['version']).strip('() ').replace(',', '.')
 
 SKETCHFAB_CATEGORIES = (('ALL', 'All categories', 'All categories'),
                         ('animals-pets', 'Animals & Pets', 'Animals and Pets'),
@@ -89,22 +95,6 @@ SKETCHFAB_SORT_BY = (('RELEVANCE', "Relevance", ""),
                      ('VIEWS', "Views", ""),
                      ('RECENT', "Recent", ""))
 
-# class SketchfabBrowserPreferences(AddonPreferences):
-#     bl_idname = ADDON_NAME
-
-#     # The following property is read-only to limit the scope of the
-#     # addon and allow for proper testing within this scope.
-#     skfb_temp_directory = StringProperty(
-#         name = 'Temporary path for downloads/thumbnails',
-#         subtype = 'DIR_PATH',
-#         default = os.path.join(bpy.context.user_preferences.filepaths.temporary_directory + 'sketchfab_downloads')
-#     )
-
-#     def draw(self, context):
-#         layout = self.layout
-#         layout.prop(self, 'skfb_temp_directory')
-
-
 def humanify_size(size):
     suffix = 'B'
     readable = size
@@ -129,6 +119,8 @@ def build_download_url(uid):
 def thumbnail_file_exists(uid):
     return os.path.exists(os.path.join(SKFB_THUMB_DIR, '{}.jpeg'.format(uid)))
 
+def get_sketchfab_login_props():
+    return bpy.context.window_manager.sketchfab_api
 
 def get_sketchfab_props():
     return bpy.context.window_manager.sketchfab_browser
@@ -204,7 +196,7 @@ class SketchfabApi:
             self.request_user_info()
         else:
             if 'error_description' in r.json():
-                bpy.ops.wm.sketchfab_error('EXEC_DEFAULT', message='Failed')
+                print("No")
             else:
                 print('Login failed.\n {}'.format(r.json()))
 
@@ -217,36 +209,6 @@ class SketchfabApi:
         url = self.get_thumbnail_url(thumbnails_json)
         thread = ThumbnailCollector(url)
         thread.start()
-
-    def handle_thumbnail(self, r, *args, **kwargs):
-        uid = get_uid_from_thumbnail_url(r.url)
-
-        if not os.path.exists(SKFB_THUMB_DIR):
-            os.makedirs(SKFB_THUMB_DIR)
-
-        thumbnail_path = os.path.join(SKFB_THUMB_DIR, uid) + '.jpeg'
-
-        with open(thumbnail_path, "wb") as f:
-            total_length = r.headers.get('content-length')
-
-            if total_length is None and r.content:
-                f.write(r.content)
-            else:
-                dl = 0
-                total_length = int(total_length)
-                for data in r.iter_content(chunk_size=4096):
-                    dl += len(data)
-                    f.write(data)
-
-        img_name = '{}'.format(uid)
-        img = bpy.data.images.load(thumbnail_path, check_existing=True)
-        img.name = img_name
-        tex = bpy.data.textures.new(img_name, 'IMAGE') if img_name not in bpy.data.textures else bpy.data.textures[img_name]
-        tex.image = img
-
-        props = get_sketchfab_props()
-        if uid not in props.custom_icons:
-            props.custom_icons.load(uid, os.path.join(SKFB_THUMB_DIR, "{}.jpeg".format(uid)), 'IMAGE')
 
     def request_model_info(self, uid):
         print('REQUEST!')
@@ -263,16 +225,6 @@ class SketchfabApi:
 
     def search(self, query, search_cb):
         search_query = '{}{}'.format(BASE_SEARCH, query) if len(query) > 3 else DEFAULT_SEARCH
-        print(search_query)
-
-        if 'thumbnails' in preview_collection:
-            bpy.utils.previews.remove(preview_collection['thumbnails'])
-            del preview_collection['thumbnails']
-
-        result_collection = bpy.utils.previews.new()
-        result_collection.thumbnails = ()
-        preview_collection['thumbnails'] = result_collection
-
         searchthr = GetRequestThread(search_query, search_cb)
         searchthr.start()
 
@@ -306,7 +258,6 @@ class SketchfabApi:
                 os.makedirs(temp_dir)
 
             archive_path = os.path.join(temp_dir, '{}.zip'.format(uid))
-            print(archive_path)
             if not os.path.exists(archive_path):
                 wm = bpy.context.window_manager
                 wm.progress_begin(0, 100)
@@ -341,7 +292,13 @@ class SketchfabApi:
 class SketchfabLoginProps(bpy.types.PropertyGroup):
 
     def update_tr(self, context):
-        bpy.ops.wm.sketchfab_login('EXEC_DEFAULT')
+        if not self.password:
+            self.status = 'Password field is empty'
+        self.status = ''
+        if self.email != self.last_username or self.password != self.last_password:
+            last_username = self.email
+            last_password = self.password
+            bpy.ops.wm.sketchfab_login('EXEC_DEFAULT')
 
     email = StringProperty(
             name="email",
@@ -364,6 +321,11 @@ class SketchfabLoginProps(bpy.types.PropertyGroup):
             )
 
     skfb_api = SketchfabApi()
+
+    status = StringProperty(name='', default='')
+
+    last_username=''
+    last_password=''
 
 
 class SketchfabBrowserPropsProxy(bpy.types.PropertyGroup):
@@ -478,61 +440,33 @@ class SketchfabBrowserProps(bpy.types.PropertyGroup):
     skfb_api = SketchfabLoginProps.skfb_api
     custom_icons = bpy.utils.previews.new()
     has_loaded_thumbnails = BoolProperty(default=False)
-
+    is_latest_version = False
 
 def list_current_results(self, context):
+    default_elt = (('NORESULTS', 'empty', "", sketchfab_icon['skfb'].icon_id, 0))
     skfb = get_sketchfab_props()
 
-    if skfb.has_loaded_thumbnails:
-        return preview_collection['thumbnails'].my_previews
+    print('NB results: {}'.format(len(skfb.search_results['current'])))
+    if skfb.has_loaded_thumbnails and 'thumbnails' in preview_collection:
+        return preview_collection['thumbnails']
 
-    skfb_results = skfb.search_results['current']
     res = []
 
-    for i, result in enumerate(skfb_results):
-        if result not in skfb_results:
-            print('RESULT ISSUE')
-        else:
-            model = skfb_results[result]
-            if model.uid in skfb.custom_icons:
-                res.append((model.uid, model.title, "", skfb.custom_icons[model.uid].icon_id, i))
-
-
-    pcoll = preview_collection['thumbnails']
-    pcoll.my_previews = res
-    skfb.has_loaded_thumbnails = True
-    return pcoll.my_previews
-
-
-def draw_results_icons(results, props, nbcol=4):
-    props = get_sketchfab_props()
-    current = props.search_results['current']
-
-    dimx = nbcol if current else 0
-    dimy = int(24 / nbcol) if current else 0
-    if dimx is not 0 and dimy is not 0:
-        for r in range(dimy):
-            ro = results.row()
-            for col in range(dimx):
-                col2 = ro.column(align=True)
-                index = r * dimx + col
-                if index >= len(current.keys()):
-                    return
-
-                model = current[list(current.keys())[index]]
-
-                if thumbnail_file_exists(model.uid) and model.uid not in props.custom_icons:
-                    props.custom_icons.load(model.uid, os.path.join(SKFB_THUMB_DIR, "{}.jpeg".format(model.uid)), 'IMAGE')
-
-                if model.uid in props.custom_icons:
-                    col2.operator("wm.sketchfab_modelview", icon_value=props.custom_icons[model.uid].icon_id, text="{}".format(model.title + ' by ' + model.author)).uid = list(current.keys())[index]
-                else:
-                    col2.operator("wm.sketchfab_modelview", text="{}".format(model.title + ' by ' + model.author)).uid = list(current.keys())[index]
+    if'current' not in skfb.search_results or not len(skfb.search_results['current']):
+        res.append(default_elt)
     else:
-        results.row()
-        results.row().label('No results')
-        results.row()
+        skfb_results = skfb.search_results['current']
+        for i, result in enumerate(skfb_results):
+            if result in skfb_results:
+                model = skfb_results[result]
+                if model.uid in skfb.custom_icons:
+                    res.append((model.uid, model.title, "", skfb.custom_icons[model.uid].icon_id, i))
+            else:
+                print('Result issue')
 
+    preview_collection['thumbnails'] = tuple(res)
+    skfb.has_loaded_thumbnails = True
+    return preview_collection['thumbnails']
 
 def draw_filters(layout, context):
     props = get_sketchfab_props_proxy()
@@ -554,78 +488,28 @@ def draw_search(layout, context):
     props = get_sketchfab_props_proxy()
     col = layout.box().column(align=True)
     col.prop(props, "query")
-    col.operator("wm.sketchfab_search", text="Search")
+    col.operator("wm.sketchfab_search", text="Search", icon='VIEWZOOM')
 
+    pprops = get_sketchfab_props()
+    col.prop(pprops, "use_preview")
 
-def draw_results(layout, context):
-    col = layout.column(align=True)
-    props = get_sketchfab_props()
-    col.prop(props, "use_preview")
-    results = layout.column(align=True)
-    model = None
-
-    rrr = col.row()
-    if props.skfb_api.prev_results_url:
-        rrr.operator("wm.sketchfab_search_prev", text="Previous page", icon='GO_LEFT')
-
-    if props.skfb_api.next_results_url:
-        rrr.operator("wm.sketchfab_search_next", text="Next page", icon='RIGHTARROW')
-
-    if 'current' not in props.search_results:
-        results.row()
-        results.row().label('Searching for models..')
-        results.row()
-        return
-
-    if len(props.search_results['current']) == 0 or not bpy.context.window_manager.result_previews:
-        results.row()
-        results.row().label('No results found')
-        results.row()
-        return
-
-    if props.use_preview:
-        result_label = 'Select a model {}'.format('in current result page' if props.skfb_api.next_results_url else '{} results'.format(len(props.search_results['current'])))
-        col.label(result_label)
-        col.template_icon_view(bpy.context.window_manager, 'result_previews', show_labels=True, scale=8.0)
-
-        if bpy.context.window_manager.result_previews not in props.search_results['current']:
-            p2 = layout.box().column(align=True)
-            p2.label('Fetching results...')
-            return
-
-        model = props.search_results['current'][bpy.context.window_manager.result_previews]
-    else:
-        draw_results_icons(results, props, 2)
-
-    if not model:
-        return
-
-    if not model.license:
-        print("request model info")
-        props.skfb_api.request_model_info(model.uid)
-
-    if props.skfb_api.is_user_logged() and not model.download_link:
-        print("request download link")
-        props.skfb_api.get_download_url(model.uid)
-
+def draw_model_info(layout, model, context):
     p2 = layout.column(align=True)
     p2.label('Name: {}'.format(model.title))
     p2.label('Author: {}'.format(model.author))
 
-    p2.operator("wm.sketchfab_view", text="View on Sketchfab").model_uid = model.uid
     if model.license:
         p2.label('License {}'.format(model.license))
     else:
         p2.label('Fetching..')
+    p2.operator("wm.sketchfab_view", text="View on Sketchfab", icon='WORLD').model_uid = model.uid
 
     p3 = layout.column(align=True)
-    p4 = layout.column(align=True)
-    p3.enabled = props.skfb_api.is_user_logged()
+    p3.enabled = get_sketchfab_props().skfb_api.is_user_logged()
     downloadlabel = "Download model ({})".format(model.download_size if model.download_size else 'fetching data') if p3.enabled is True else 'You need to be logged in to download a model'
-    p3.operator("wm.sketchfab_download", icon_value=sketchfab_icon['skfb'].icon_id, text=downloadlabel).model_uid = model.uid
-    p4.label('')
-    p4.operator('wm.sketchfab_debug')
-
+    download_icon = 'EXPORT' if p3.enabled else 'INFO'
+    p3.label('')
+    p3.operator("wm.sketchfab_download", icon=download_icon, text=downloadlabel, translate=False, emboss=True).model_uid = model.uid
 
 # utils
 def set_log(log):
@@ -705,6 +589,11 @@ def build_search_request(query, pbr, animated, staffpick, face_count, category, 
 def parse_results(r, *args, **kwargs):
     skfb = get_sketchfab_props()
     json_data = r.json()
+
+    if 'current' in skfb.search_results:
+        skfb.search_results['current'].clear()
+        del skfb.search_results['current']
+
     skfb.search_results['current'] = OrderedDict()
 
     for result in json_data['results']:
@@ -715,9 +604,13 @@ def parse_results(r, *args, **kwargs):
 
     if json_data['next']:
         skfb.skfb_api.next_results_url = json_data['next']
+    else:
+        skfb.skfb_api.next_results_url = None
 
     if json_data['previous']:
         skfb.skfb_api.prev_results_url = json_data['previous']
+    else:
+        skfb.skfb_api.prev_results_url = None
 
 
 class ThumbnailCollector(threading.Thread):
@@ -754,6 +647,8 @@ class ThumbnailCollector(threading.Thread):
         props = get_sketchfab_props()
         if uid not in props.custom_icons:
             props.custom_icons.load(uid, os.path.join(SKFB_THUMB_DIR, "{}.jpeg".format(uid)), 'IMAGE')
+        else:
+            print('RELOADING ' + uid)
 
 
 class ImportThread(threading.Thread):
@@ -835,14 +730,16 @@ class LoginThread(threading.Thread):
         requests.post(self.url, hooks={'response': self.handle_login})
 
     def handle_login(self, r, *args, **kwargs):
+        browser_props = get_sketchfab_props()
         if r.status_code == 200 and 'access_token' in r.json():
-            bpy.context.window_manager.sketchfab_browser.skfb_api.access_token = r.json()['access_token']
-            bpy.context.window_manager.sketchfab_browser.skfb_api.build_headers()
+            browser_props.skfb_api.access_token = r.json()['access_token']
+            browser_props.skfb_api.build_headers()
             print('Logged in => ' + bpy.context.window_manager.sketchfab_browser.skfb_api.access_token)
-            bpy.context.window_manager.sketchfab_browser.skfb_api.request_user_info()
+            browser_props.skfb_api.request_user_info()
         else:
             if 'error_description' in r.json():
-                bpy.ops.wm.sketchfab_error('EXEC_DEFAULT', message='Failed')
+                login_props = get_sketchfab_login_props()
+                login_props.status = 'Failed to authenticate: bad login/password'
                 # report('ERROR', r.json()['error_description'])
             else:
                 print('Login failed.\n {}'.format(r.json()))
@@ -862,34 +759,25 @@ class View3DPanel:
 
 class LoginPanel(View3DPanel, bpy.types.Panel):
     bl_idname = "VIEW3D_PT_test_1"
-    bl_label = "Login"
+    bl_label = "Login to your Sketchfab account"
 
     is_logged = BoolProperty()
 
     def draw(self, context):
-        props = context.window_manager.sketchfab_api
+        props = get_sketchfab_login_props()
 
         layout = self.layout
-        layout.label("Sketchfab account:")
-        col = layout.box().column(align=True)
+
         if props.skfb_api.is_user_logged():
-            col.label('Successfully logged in {}'.format((props.skfb_api.get_user_info())))
-            col.operator('wm.sketchfab_login', 'Logout').authenticate = False
+            self.bl_label = 'Logged in as {}'.format(props.skfb_api.get_user_info())
+            layout.operator('wm.sketchfab_login', text='Logout', icon='GO_LEFT').authenticate = False
         else:
-            col.prop(props, "email")
-            col.prop(props, "password")
-            col.operator('wm.sketchfab_login', 'Login').authenticate = True
-
-
-class BrowsEbuttonPanel(View3DPanel, bpy.types.Panel):
-    bl_idname = "VIEW3D_PT_test_2"
-    bl_label = "Browse Sketchfab"
-
-    def draw(self, context):
-        # self.layout.box().column(align=True).operator('wm.sketchfab_browse', text="Browse Sketchfab")
-        # self.layout.label('Debug')
-        # self.layout.operator('wm.skfb_debug', 'PERFORM')
-        draw_search(self.layout, context)
+            layout.prop(props, "email")
+            layout.prop(props, "password")
+            layout.operator('wm.sketchfab_login', text='Login', icon='WORLD').authenticate = True
+            self.bl_label = "Login to your Sketchfab account"
+            if props.status:
+                layout.prop(props,'status', icon='ERROR')
 
 
 class FiltersPanel(View3DPanel, bpy.types.Panel):
@@ -904,21 +792,109 @@ class FiltersPanel(View3DPanel, bpy.types.Panel):
         draw_filters(self.layout, context)
 
 
+def draw_results_icons(results, props, nbcol=4):
+    props = get_sketchfab_props()
+    current = props.search_results['current']
+
+    dimx = nbcol if current else 0
+    dimy = int(24 / nbcol) if current else 0
+    if dimx is not 0 and dimy is not 0:
+        for r in range(dimy):
+            ro = results.row()
+            for col in range(dimx):
+                col2 = ro.column(align=True)
+                index = r * dimx + col
+                if index >= len(current.keys()):
+                    return
+
+                model = current[list(current.keys())[index]]
+
+                # if model.uid not in props.custom_icons:
+                #     if not thumbnail_file_exists(model.uid):
+                #         props.custom_icons.load(model.uid, os.path.join(SKFB_THUMB_DIR, "{}.jpeg".format(model.uid)), 'IMAGE')
+                #     else:
+                #         props.custom_icons.load(model.uid, 'D:\\placeholder.png', 'IMAGE')
+                # else:
+                #     print(props.custom_icons[model.uid])
+
+                if model.uid in props.custom_icons:
+                    col2.operator("wm.sketchfab_modelview", icon_value=props.custom_icons[model.uid].icon_id, text="{}".format(model.title + ' by ' + model.author)).uid = list(current.keys())[index]
+                else:
+                    col2.operator("wm.sketchfab_modelview", text="{}".format(model.title + ' by ' + model.author)).uid = list(current.keys())[index]
+    else:
+        results.row()
+        results.row().label('No results')
+        results.row()
+
+
 class ResultsPanel(View3DPanel, bpy.types.Panel):
     bl_idname = "VIEW3D_PT_sketchfab_results"
     bl_label = "Results"
 
+    uid = ''
     def draw(self, context):
-        # self.layout.box().column(align=True).operator('wm.sketchfab_browse', text="Browse Sketchfab")
-        # self.layout.label('Debug')
-        # self.layout.operator('wm.skfb_debug', 'PERFORM')
-        draw_results(self.layout, context)
+        layout = self.layout
+        col = layout.column(align=True)
+        props = get_sketchfab_props()
+        results = layout.column(align=True)
+        model = None
+
+        rrr = col.row()
+        if props.skfb_api.prev_results_url:
+            rrr.operator("wm.sketchfab_search_prev", text="Previous page", icon='GO_LEFT')
+
+        if props.skfb_api.next_results_url:
+            rrr.operator("wm.sketchfab_search_next", text="Next page", icon='RIGHTARROW')
+
+        if 'current' not in props.search_results:
+            self.bl_label = 'No results'
+            return
+
+        elif len(props.search_results['current']) == 0:
+            self.bl_label = 'No results'
+            return
+        else:
+            self.bl_label = "Results"
+
+        if props.use_preview:
+            result_label = 'Select a model {}'.format('in current result page' if props.skfb_api.next_results_url else '{} results'.format(len(props.search_results['current'])))
+            col.label(result_label)
+            col.template_icon_view(bpy.context.window_manager, 'result_previews', show_labels=True, scale=8.0)
+
+            if bpy.context.window_manager.result_previews not in props.search_results['current']:
+                p2 = layout.box().column(align=True)
+                p2.label('Fetching results...')
+                return
+
+            model = props.search_results['current'][bpy.context.window_manager.result_previews]
+
+            if not model:
+                return
+
+            if self.uid != model.uid:
+                self.uid = model.uid
+
+                if not model.license:
+                    print("request model info")
+                    props.skfb_api.request_model_info(model.uid)
+
+                if props.skfb_api.is_user_logged() and not model.download_link:
+                    print("request download link")
+                    props.skfb_api.get_download_url(model.uid)
+
+            draw_model_info(col, model, context)
+
+        else:
+            draw_results_icons(results, props, 2)
+
+
 
 
 # Operators:
 class SketchfabLogger(bpy.types.Operator):
     bl_idname = 'wm.sketchfab_login'
     bl_label = 'Sketchfab Login'
+    bl_options= {'INTERNAL'}
 
     authenticate = BoolProperty(default=True)
 
@@ -933,23 +909,12 @@ class SketchfabLogger(bpy.types.Operator):
 
 
 # Operator to perform search on Sketchfab
-class SketchfabBrowse(bpy.types.Operator):
+class SketchfabBrowse(View3DPanel, bpy.types.Panel):
     bl_idname = "wm.sketchfab_browse"
     bl_label = "Browse Sketchfab"
 
-    email = StringProperty(
-            name="Email",
-            default="you@example.com",
-            )
-
-    def execute(self, context):
-        return {'FINISHED'}
-
     def draw(self, context):
         draw_search(self.layout, context)
-
-    def check(self, context):
-        return True
 
     def invoke(self, context, event):
         wm = context.window_manager
@@ -972,13 +937,13 @@ class SketchfabModel:
 class SketchfabModelView(bpy.types.Operator):
     bl_idname = "wm.sketchfab_modelview"
     bl_label = "Download Sketchfab model"
-
-    addCurrentScene = BoolProperty(
-                      name="Add to Scene",
-                      default=True)
+    bl_options= {'INTERNAL'}
 
     uid = bpy.props.StringProperty(name="uid")
-    preview = bpy.utils.previews.new()
+
+    def execute(self, context):
+        print('LOADING ' + self.uid)
+        return {'FINISHED'}
 
     def draw(self, context):
         skfb = context.window_manager.sketchfab_browser
@@ -987,7 +952,6 @@ class SketchfabModelView(bpy.types.Operator):
         layout = self.layout
         bpy.context.window_manager.result_previews = self.uid
         col = layout.column()
-        rr = col
 
         if not model:
             return
@@ -998,24 +962,107 @@ class SketchfabModelView(bpy.types.Operator):
         if not model.download_link:
             skfb.skfb_api.get_download_url(model.uid)
 
-        rr.label(text='{} by {}'.format(model.title, model.author))
-        rr.operator("wm.sketchfab_view", text="View on Sketchfab").model_uid = self.uid
+        col.label(text='{} by {}'.format(model.title, model.author))
+        col.operator("wm.sketchfab_view", text="View on Sketchfab", icon='WORLD').model_uid = self.uid
 
-        col.template_icon_view(bpy.context.window_manager, 'result_previews', show_labels=True, scale=8.0)
+        col.template_icon_view(bpy.context.window_manager, 'result_previews', show_labels=True, scale=5.0)
 
-        col.label('License {}'.format(model.license))
+        col.label('License {}'.format(model.license), icon='FILE_SCRIPT')
+
+        user_logged = skfb.skfb_api.is_user_logged()
 
         if model.download_link:
             col.operator("wm.sketchfab_download", text="Download model ({})".format(model.download_size if model.download_size else 'fetching data')).model_uid = self.uid
+        elif not user_logged:
+            p3 = col.column()
+            p3.enabled = False
+            p3.operator("wm.sketchfab_download", text='You need to be logged in to import a model', icon='ERROR')
+        else:
+            col.operator("wm.sketchfab_download", text='Model is not available', icon='INFO')
+
 
     def invoke(self, context, event):
         wm = context.window_manager
         return wm.invoke_popup(self)
 
+# class SketchfabModelView(bpy.types.Operator):
+#     bl_idname = "wm.sketchfab_modelview"
+#     bl_label = "Download Sketchfab model"
+
+#     addCurrentScene = BoolProperty(
+#                       name="Add to Scene",
+#                       default=True)
+
+#     uid = bpy.props.StringProperty(name="uid")
+
+#     model_info = {}
+#     preview = bpy.utils.previews.new()
+
+#     def execute(self, context):
+#         print('LOADING ' + self.uid)
+#         return {'FINISHED'}
+
+#     def parse_model_info(self, r, *args, **kwargs):
+#         if r.status_code != 200:
+#             print('Failed to retrieve model info')
+#             return
+
+#         json_data = r.json()
+#         model_info['name'] = json_data['name']
+
+#     def draw(self, context):
+#         position = [0.0, 0.0]
+#         width = 150.0
+#         height = 150.0
+#         import bgl
+#         bgl.glEnable(bgl.GL_BLEND)
+#         bgl.glBegin(bgl.GL_QUADS)
+#         bgl.glTexCoord2f(1, 1)
+#         bgl.glVertex2f(position[0],position[1])
+#         bgl.glTexCoord2f(0, 1)
+#         bgl.glVertex2f((position[0]+width),position[1])
+#         bgl.glTexCoord2f(0, 0)
+#         bgl.glVertex2f((position[0]+width), (position[1]+height))
+#         bgl.glTexCoord2f(1, 0)
+#         bgl.glVertex2f(position[0], (position[1]+height))
+#         bgl.glEnd()
+#         bgl.glDisable(bgl.GL_BLEND)
+
+#         skfb = context.window_manager.sketchfab_browser
+#         model = skfb.search_results['current'][self.uid]
+
+#         layout = self.layout
+#         bpy.context.window_manager.result_previews = self.uid
+#         col = layout.column()
+#         rr = col.row()
+#         if not model:
+#             return
+
+#         if not model.license:
+#             skfb.skfb_api.request_model_info(model.uid)
+
+#         if not model.download_link:
+#             skfb.skfb_api.get_download_url(model.uid)
+
+#         rr.label(text='{} by {}'.format(model.title, model.author))
+#         rr.operator("wm.sketchfab_view", text="View on Sketchfab").model_uid = self.uid
+
+#         col.template_icon_view(bpy.context.window_manager, 'result_previews', show_labels=True, scale=8.0)
+
+#         col.label('License {}'.format(model.license))
+#         col.prop(skfb, "model_scale")
+#         if model.download_link:
+#             col.operator("wm.sketchfab_download", text="Download model ({})".format(model.download_size if model.download_size else 'fetching data')).model_uid = self.uid
+
+#     def invoke(self, context, event):
+#         wm = context.window_manager
+#         return wm.invoke_popup(self)
+
 
 class SketchfabDownloadModel(bpy.types.Operator):
     bl_idname = "wm.sketchfab_download"
     bl_label = "Downloading"
+    bl_options= {'INTERNAL'}
 
     model_uid = bpy.props.StringProperty(name="uid")
 
@@ -1028,6 +1075,7 @@ class SketchfabDownloadModel(bpy.types.Operator):
 class ViewOnSketchfab(bpy.types.Operator):
     bl_idname = "wm.sketchfab_view"
     bl_label = "Open on Browser"
+    bl_options= {'INTERNAL'}
 
     model_uid = bpy.props.StringProperty(name="uid")
 
@@ -1036,49 +1084,52 @@ class ViewOnSketchfab(bpy.types.Operator):
         webbrowser.open('{}/models/{}'.format(SKETCHFAB_URL, self.model_uid))
         return {'FINISHED'}
 
+def clear_search():
+    skfb = get_sketchfab_props()
+    skfb.has_loaded_thumbnails = False
+    # skfb.search_results.clear()
+    # skfb.custom_icons.clear()
+    bpy.data.window_managers['WinMan']['result_previews'] = 0
+
 
 class SketchfabSearch(bpy.types.Operator):
     bl_idname = "wm.sketchfab_search"
     bl_label = "Search Sketchfab"
+    bl_options= {'INTERNAL'}
 
     def execute(self, context):
         # prepare request for search
-        skfb = context.window_manager.sketchfab_browser
-        skfb.has_loaded_thumbnails = False
-        skfb.custom_icons.clear()
-        skfb_api = context.window_manager.sketchfab_browser.skfb_api
-        skfb.search_results.clear()
+        clear_search()
+        skfb = get_sketchfab_props()
         skfb.skfb_api.prev_results_url = None
         skfb.skfb_api.next_results_url = None
         final_query = build_search_request(skfb.query, skfb.pbr, skfb.animated, skfb.staffpick, skfb.face_count, skfb.categories, skfb.sort_by)
-        skfb_api.search(final_query, parse_results)
+        skfb.skfb_api.search(final_query, parse_results)
         return {'FINISHED'}
 
 
 class SketchfabSearchNextResults(bpy.types.Operator):
     bl_idname = "wm.sketchfab_search_next"
     bl_label = "Search Sketchfab"
+    bl_options= {'INTERNAL'}
 
     def execute(self, context):
         # prepare request for search
-        skfb = context.window_manager.sketchfab_browser
-        skfb_api = context.window_manager.sketchfab_browser.skfb_api
-        skfb.search_results.clear()
-        skfb.has_loaded_thumbnails = False
+        clear_search()
+        skfb_api = get_sketchfab_props().skfb_api
         skfb_api.search_cursor(skfb_api.next_results_url, parse_results)
-
         return {'FINISHED'}
 
 
 class SketchfabSearchPreviousResults(bpy.types.Operator):
     bl_idname = "wm.sketchfab_search_prev"
     bl_label = "Search Sketchfab"
+    bl_options= {'INTERNAL'}
 
     def execute(self, context):
         # prepare request for search
-        skfb = context.window_manager.sketchfab_browser
-        skfb_api = context.window_manager.sketchfab_browser.skfb_api
-        skfb.search_results.clear()
+        clear_search()
+        skfb_api = get_sketchfab_props().skfb_api
         skfb_api.search_cursor(skfb_api.prev_results_url, parse_results)
 
         return {'FINISHED'}
@@ -1087,6 +1138,7 @@ class SketchfabSearchPreviousResults(bpy.types.Operator):
 class SketchfabOpenModel(bpy.types.Operator):
     bl_idname = "wm.sketchfab_open"
     bl_label = "Downloading"
+    bl_options= {'INTERNAL'}
 
     def execute(self, context):
         return {'FINISHED'}
@@ -1104,65 +1156,130 @@ class SketchfabOpenModel(bpy.types.Operator):
 class SketchfabPopup(bpy.types.Operator):
     bl_idname = "wm.sketchfab_error"
     bl_label = "Sketchfab"
-
-    message = StringProperty(name='Error', default='Failed')
-
-    def execute(self, context):
-        self.report({'INFO'}, "OOOK")
-        return {'FINISHED'}
+    bl_options= {'INTERNAL'}
 
     def draw(self, context):
         layout = self.layout
         col = layout.column()
-        col.label(text="I'm downloading your model!")
+        col.label('YOLO')
 
     def invoke(self, context, event):
         wm = context.window_manager
         return wm.invoke_popup(self, width=550)
 
+class VersionPanel(View3DPanel, bpy.types.Panel):
+    bl_idname = "VIEW3D_PT_sketchfab_version"
+    bl_label = "Sketchfab plugin v{}".format(PLUGIN_VERSION)
+
+    def draw(self, context):
+        self.layout.alignment = 'CENTER'
+        skfb = get_sketchfab_props()
+        if not skfb.is_latest_version:
+            self.layout.operator('wm.skfb_new_version', text='New version available', icon='NEW')
+
+        rr = self.layout.row()
+        rr.operator('wm.skfb_help', text='Documentation', icon='QUESTION')
+        rr.operator('wm.skfb_report_issue', text='Report an issue', icon='ERROR')
+        rr.operator('wm.sketchfab_debug', text='DEBUG')
+
+class SketchfabNewVersion(bpy.types.Operator):
+    bl_idname = "wm.skfb_new_version"
+    bl_label = "Sketchfab"
+    bl_options= {'INTERNAL'}
+
+    def execute(self, context):
+        import webbrowser
+        webbrowser.open('{}/releases/latest'.format(GITHUB_REPOSITORY_URL))
+        return {'FINISHED'}
+
+class SketchfabReportIssue(bpy.types.Operator):
+    bl_idname = "wm.skfb_report_issue"
+    bl_label = "Sketchfab"
+    bl_options= {'INTERNAL'}
+
+    def execute(self, context):
+        import webbrowser
+        webbrowser.open(SKETCHFAB_REPORT_URL)
+        return {'FINISHED'}
+
+class SketchfabHelp(bpy.types.Operator):
+    bl_idname = "wm.skfb_help"
+    bl_label = "Sketchfab"
+    bl_options= {'INTERNAL'}
+
+    def execute(self, context):
+        import webbrowser
+        webbrowser.open('{}/releases/latest'.format(GITHUB_REPOSITORY_URL))
+        return {'FINISHED'}
 
 class SketchfabDebug(bpy.types.Operator):
     bl_idname = "wm.sketchfab_debug"
     bl_label = "Open temp dir"
+    bl_options= {'INTERNAL'}
 
     def execute(self, context):
         command = 'echo ' + SKFB_TEMP_DIR + '| clip'
         os.system(command)
+        if 'thumbnails' in preview_collection:
+            del preview_collection['thumbnails']
+
         return {'FINISHED'}
 
 
 classes = (
+    # Properties
+    SketchfabBrowserProps,
+    SketchfabLoginProps,
+    SketchfabBrowserPropsProxy,
+
+    # Panels
     LoginPanel,
-    BrowsEbuttonPanel,
+    SketchfabBrowse,
     FiltersPanel,
     ResultsPanel,
+    VersionPanel,
     ViewOnSketchfab,
     SketchfabModelView,
     SketchfabDownloadModel,
     SketchfabLogger,
-    SketchfabBrowse,
+
+
+    # Operators
     SketchfabSearch,
     SketchfabSearchNextResults,
     SketchfabSearchPreviousResults,
-    SketchfabBrowserProps,
-    SketchfabLoginProps,
+    SketchfabNewVersion,
+    SketchfabReportIssue,
+    SketchfabHelp,
+
+    # Misc and Debug
     SketchfabPopup,
     SketchfabDebug
     )
 
 
+def check_plugin_version(request, *args, **kwargs):
+    response = request.json()
+    if response and len(response):
+        latest_release_version = set(response[0]['tag_name'].split('.'))
+        if latest_release_version == bl_info['version']:
+            skfb.is_latest_version = True
+        else:
+            print('NEW VERSION AVAILABLE: {}'.format(latest_release_version))
+    else:
+        print('Failed to retrieve plugin version')
+
 def register():
     global sketchfab_icon
     sketchfab_icon = bpy.utils.previews.new()
     sketchfab_icon.load("skfb", "D:\\logo.png", 'IMAGE')
+    sketchfab_icon.load("model", "D:\\placeholder.png", 'IMAGE')
 
     for cls in classes:
         bpy.utils.register_class(cls)
 
     bpy.types.WindowManager.sketchfab_browser = PointerProperty(
                 type=SketchfabBrowserProps)
-
-    bpy.utils.register_class(SketchfabBrowserPropsProxy)
 
     bpy.types.WindowManager.sketchfab_browser_proxy = PointerProperty(
                 type=SketchfabBrowserPropsProxy)
@@ -1171,15 +1288,28 @@ def register():
                 type=SketchfabLoginProps,
                 )
 
+    preview_collection['thumbnails'] = bpy.utils.previews.new()
     bpy.types.WindowManager.result_previews = EnumProperty(items=list_current_results)
+
+    requests.get(SKETCHFAB_PLUGIN_VERSION, hooks={'response': check_plugin_version})
 
 
 def unregister():
+    sketchfab_icon.clear()
+    del sketchfab_icon
+
     for cls in classes:
         bpy.utils.unregister_class(cls)
 
     del bpy.types.WindowManager.sketchfab_api
     del bpy.types.WindowManager.sketchfab_browser
+    del bpy.types.WindowManager.sketchfab_browser_proxy
+
+    del bpy.types.WindowManager.result_previews
+
+    if 'thumbnails' in preview_collection:
+        bpy.utils.previews.remove(preview_collection['thumbnails'])
+        del preview_collection['thumbnails']
 
 
 if __name__ == "__main__":
