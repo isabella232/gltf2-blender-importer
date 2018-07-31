@@ -121,6 +121,9 @@ def thumbnail_file_exists(uid):
 
 
 def clean_thumbnail_directory():
+    if not os.path.exists(SKFB_THUMB_DIR):
+        return
+
     from os import listdir
     for file in listdir(SKFB_THUMB_DIR):
         os.remove(os.path.join(SKFB_THUMB_DIR, file))
@@ -234,7 +237,10 @@ class SketchfabApi:
         uid = get_uid_from_model_url(r.url)
         model = get_sketchfab_props().search_results['current'][uid]
         json_data = r.json()
+        print(json_data)
         model.license = json_data['license']['fullName']
+        print(json_data.keys())
+        model.animated = int(json_data['animationCount']) > 0
         get_sketchfab_props().search_results['current'][uid] = model
 
     def search(self, query, search_cb):
@@ -349,7 +355,8 @@ class SketchfabBrowserPropsProxy(bpy.types.PropertyGroup):
             name="",
             update=refresh_search2,
             description="Query to search",
-            default=""
+            default="",
+            options={'SKIP_SAVE'}
             )
 
     pbr = BoolProperty(
@@ -522,7 +529,10 @@ def draw_model_info(layout, model, context):
     p2.label('Author: {}'.format(model.author))
 
     if model.license:
-        p2.label('License {}'.format(model.license))
+        p2.label('License: {}'.format(model.license))
+        if(model.animated):
+            p2.label('Animation is not supported', icon='ERROR')
+            p2.label('Model can be imported with transform issues')
     else:
         p2.label('Fetching..')
     p2.operator("wm.sketchfab_view", text="View on Sketchfab", icon='WORLD').model_uid = model.uid
@@ -898,8 +908,13 @@ class ResultsPanel(View3DPanel, bpy.types.Panel):
             if self.uid != model.uid:
                 self.uid = model.uid
 
-                if not model.license:
+                if not model.info_requested:
                     props.skfb_api.request_model_info(model.uid)
+                    model.info_requested = True
+
+                if not model.download_url_requested:
+                    props.skfb_api.get_download_url(model.uid)
+                    model.download_url_requested = True
 
                 if props.skfb_api.is_user_logged() and not model.download_link:
                     props.skfb_api.get_download_url(model.uid)
@@ -950,9 +965,15 @@ class SketchfabModel:
         self.uid = json_data['uid']
         self.vertex_count = json_data['vertexCount']
         self.face_count = json_data['faceCount']
-        self.download_link = None
+
+        self.info_requested = False
         self.license = None
+        self.animated = False
+
+        self.download_url_requested = False
         self.download_size = None
+        self.download_link = None
+
         self.thumbnail_url = os.path.join(SKFB_THUMB_DIR, '{}.jpeg'.format(self.uid))
 
 
@@ -977,11 +998,13 @@ class SketchfabModelView(bpy.types.Operator):
         if not model:
             return
 
-        if not model.license:
+        if not model.info_requested:
             skfb.skfb_api.request_model_info(model.uid)
+            model.info_requested = True
 
-        if not model.download_link:
+        if not model.download_url_requested:
             skfb.skfb_api.get_download_url(model.uid)
+            model.download_url_requested = True
 
         col.label(text='{} by {}'.format(model.title, model.author))
         col.operator("wm.sketchfab_view", text="View on Sketchfab", icon='WORLD').model_uid = self.uid
