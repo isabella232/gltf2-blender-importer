@@ -62,6 +62,8 @@ def create_blender_cycles(gltf_pbr, mat_name):
 
             # links
             rgb_node = node_tree.nodes.new('ShaderNodeMixRGB')
+            rgb_node.blend_type = 'MULTIPLY'
+            rgb_node.inputs['Fac'].default_value = 1.0
             rgb_node.inputs['Color1'].default_value = gltf_pbr.baseColorFactor
             node_tree.links.new(rgb_node.inputs['Color2'], attribute_node.outputs[0])
             node_tree.links.new(principled.inputs[0], rgb_node.outputs[0])
