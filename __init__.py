@@ -29,9 +29,9 @@ bl_info = {
     'blender': (2, 7, 9),
     'location': 'View3D > Tools > Sketchfab',
     'warning': '',
-    'wiki_url': '{}/releases'.format(GITHUB_REPOSITORY_URL),
-    'tracker_url': '{}/issues'.format(GITHUB_REPOSITORY_URL),
-    'link': GITHUB_REPOSITORY_URL,
+    'wiki_url': 'https://github.com/sketchfab/gltf2-blender-importer/releases',
+    'tracker_url': 'https://github.com/sketchfab/gltf2-blender-importer/issues',
+    'link': 'https://github.com/sketchfab/gltf2-blender-importer',
     'support': 'COMMUNITY',
     'category': 'Add Mesh'
     }
@@ -88,7 +88,7 @@ SKETCHFAB_FACECOUNT = (('ANY', "All", ""),
                        ('50K', "10k to 50k", ""),
                        ('100K', "50k to 100k", ""),
                        ('250K', "100k to 250k", ""),
-                       ('250kP', "250k +", ""))
+                       ('250KP', "250k +", ""))
 
 SKETCHFAB_SORT_BY = (('RELEVANCE', "Relevance", ""),
                      ('LIKES', "Likes", ""),
@@ -127,14 +127,13 @@ def clean_thumbnail_directory():
     from os import listdir
     for file in listdir(SKFB_THUMB_DIR):
         os.remove(os.path.join(SKFB_THUMB_DIR, file))
-        print('CLEANED {}'.format(os.path.join(SKFB_THUMB_DIR, file)))
 
+    print('Cleaned thumbnails')
 
 def clean_downloaded_model_dir(uid):
-    print('CLEANING ' + os.path.join(SKFB_MODEL_DIR, uid))
     import shutil
     shutil.rmtree(os.path.join(SKFB_MODEL_DIR, uid))
-
+    print('Cleaning downloaded file ' + os.path.join(SKFB_MODEL_DIR, uid))
 
 def get_sketchfab_login_props():
     return bpy.context.window_manager.sketchfab_api
@@ -186,6 +185,7 @@ class SketchfabApi:
     def is_user_logged(self):
         if self.access_token and self.headers:
             return True
+
         return False
 
     def logout(self):
@@ -237,14 +237,12 @@ class SketchfabApi:
         uid = get_uid_from_model_url(r.url)
         model = get_sketchfab_props().search_results['current'][uid]
         json_data = r.json()
-        print(json_data)
         model.license = json_data['license']['fullName']
-        print(json_data.keys())
         model.animated = int(json_data['animationCount']) > 0
         get_sketchfab_props().search_results['current'][uid] = model
 
     def search(self, query, search_cb):
-        search_query = '{}{}'.format(BASE_SEARCH, query) if len(query) > 3 else DEFAULT_SEARCH
+        search_query = '{}{}'.format(BASE_SEARCH, query)
         searchthr = GetRequestThread(search_query, search_cb)
         searchthr.start()
 
@@ -268,6 +266,11 @@ class SketchfabApi:
 
     def get_archive(self, uid):
         url = get_sketchfab_props().search_results['current'][uid].download_link
+        if url is None:
+            print(url + 'is None')
+            return
+
+
         if False:
             thread = DownloadThread(url, uid)
             thread.start()
@@ -304,17 +307,24 @@ class SketchfabApi:
             import traceback
             try:
                 import_model(gltf_path)
-                clean_downloaded_model_dir(uid)
+                # clean_downloaded_model_dir(uid)
             except Exception as e:
                 print(traceback.format_exc())
 
+def set_login_status(status_type, status):
+    login_props = get_sketchfab_login_props()
+    login_props.status = status
+    login_props.status_type = status_type
 
 # Property used for login (importer + future exporter)
 class SketchfabLoginProps(bpy.types.PropertyGroup):
 
     def update_tr(self, context):
         if not self.password:
-            self.status = 'Password field is empty'
+            set_login_status('ERROR', 'Password field is empty')
+            print('ok')
+            return
+
         self.status = ''
         if self.email != self.last_username or self.password != self.last_password:
             last_username = self.email
@@ -338,12 +348,20 @@ class SketchfabLoginProps(bpy.types.PropertyGroup):
             name="access_token",
             description="oauth access token",
             subtype='PASSWORD',
-            default=""
+            default="dr5ysFbOC5thVkvvraCQT1oPaopyP5"
             )
 
     skfb_api = SketchfabApi()
 
     status = StringProperty(name='', default='')
+    status_type = EnumProperty(
+            name="Face Count",
+            items= (('ERROR', "Error", ""),
+                       ('INFO', "Information", ""),
+                       ('FILE_REFRESH', "Progress", "")),
+            description="Determines which icon to use",
+            default='FILE_REFRESH'
+            )
 
     last_username=''
     last_password=''
@@ -362,7 +380,8 @@ class SketchfabBrowserPropsProxy(bpy.types.PropertyGroup):
     pbr = BoolProperty(
             name="PBR",
             description="Search for PBR model only",
-            default=False
+            default=False,
+            update=refresh_search2,
             )
 
     categories = EnumProperty(
@@ -453,8 +472,8 @@ class SketchfabBrowserProps(bpy.types.PropertyGroup):
 
     use_preview = BoolProperty(
         name="Use Preview",
-        description="Show results as buttons with icon as thumbnail",
-        default=False
+        description="Show results using preview widget instead of regular buttons with thumbnails as icons",
+        default=True
         )
 
     search_results = {}
@@ -501,10 +520,12 @@ def list_current_results(self, context):
 def draw_filters(layout, context):
     props = get_sketchfab_props_proxy()
     col = layout.box().column(align=True)
-    col.prop(props, "categories")
+
     col.prop(props, "animated")
-    col.prop(props, "staffpick")
     col.prop(props, "pbr")
+    col.prop(props, "staffpick")
+    col.prop(props, "categories")
+
     col.label('Sort by')
     sb = col.row()
     sb.prop(props, "sort_by", expand=True)
@@ -531,15 +552,14 @@ def draw_model_info(layout, model, context):
     if model.license:
         p2.label('License: {}'.format(model.license))
         if(model.animated):
-            p2.label('Animation is not supported', icon='ERROR')
-            p2.label('Model can be imported with transform issues')
+            p2.label('Animation is not supported (possible issues)', icon='ERROR')
     else:
         p2.label('Fetching..')
     p2.operator("wm.sketchfab_view", text="View on Sketchfab", icon='WORLD').model_uid = model.uid
 
     p3 = layout.column(align=True)
     p3.enabled = get_sketchfab_props().skfb_api.is_user_logged()
-    downloadlabel = "Download model ({})".format(model.download_size if model.download_size else 'fetching data') if p3.enabled is True else 'You need to be logged in to download a model'
+    downloadlabel = "Import model ({})".format(model.download_size if model.download_size else 'fetching data') if p3.enabled is True else 'You need to be logged in to download a model'
     download_icon = 'EXPORT' if p3.enabled else 'INFO'
     p3.label('')
     p3.operator("wm.sketchfab_download", icon=download_icon, text=downloadlabel, translate=False, emboss=True).model_uid = model.uid
@@ -587,9 +607,10 @@ def run_async(func):
 
 
 def import_model(gltf_path):
-    thread = ImportThread(gltf_path)
-    thread.start()
-    thread.join()
+    bpy.ops.wm.import_modal('INVOKE_DEFAULT', gltf_path=gltf_path)
+    # thread = ImportThread(gltf_path)
+    # thread.start()
+    # thread.join()
 
 
 def build_search_request(query, pbr, animated, staffpick, face_count, category, sort_by):
@@ -602,13 +623,22 @@ def build_search_request(query, pbr, animated, staffpick, face_count, category, 
         final_query = final_query + '&staffpicked=true'
 
     if sort_by == 'LIKES':
-        final_query = final_query + '&sort_by=-viewCount'
+        final_query = final_query + '&sort_by=-likeCount'
     elif sort_by == 'RECENT':
         final_query = final_query + '&sort_by=-publishedAt'
     elif sort_by == 'VIEWS':
-        final_query = final_query + '&sort_by=-likeCount'
-    elif query:
-        final_query = final_query + '&sort_by=-likeCount'
+        final_query = final_query + '&sort_by=-viewCount'
+
+    if face_count == '10K':
+        final_query = final_query + '&max_face_count=10000'
+    elif face_count == '50K':
+        final_query = final_query + '&min_face_count=10000&max_face_count=50000'
+    elif face_count == '100K':
+        final_query = final_query + '&min_face_count=50000&max_face_count=100000'
+    elif face_count == '250K':
+        final_query = final_query + "&min_face_count=100000&max_face_count=250000"
+    elif face_count == '250KP':
+        final_query = final_query + "&min_face_count=250000"
 
     if category != 'ALL':
         final_query = final_query + '&categories={}'.format(category)
@@ -616,6 +646,7 @@ def build_search_request(query, pbr, animated, staffpick, face_count, category, 
     if pbr:
         final_query = final_query + '&pbr_type=metalness'
 
+    print(final_query)
     return final_query
 
 
@@ -629,7 +660,7 @@ def parse_results(r, *args, **kwargs):
 
     skfb.search_results['current'] = OrderedDict()
 
-    for result in json_data['results']:
+    for result in list(json_data['results']):
         uid = result['uid']
         skfb.search_results['current'][result['uid']] = SketchfabModel(result)
 
@@ -709,6 +740,49 @@ class ImportThread(threading.Thread):
             import traceback
             print(traceback.format_exc())
 
+class ImportModalOperator(bpy.types.Operator):
+    bl_idname = "wm.import_modal"
+    bl_label = "Import glTF model into Sketchfab"
+    bl_options = {'INTERNAL'}
+
+    gltf_path = StringProperty()
+
+    def __init__(self):
+        print('start')
+
+    def __del__(self):
+        print('END')
+
+    def exectue(self, context):
+        print('IMPORT')
+        return {'FINISHED'}
+
+    def modal(self, context, event):
+        bpy.context.scene.render.engine = 'CYCLES'
+        gltf_data = glTFImporter(self.gltf_path, Log.default())
+        success, txt = gltf_data.read()
+        if not success:
+            print('Failed to read GLTF')
+        try:
+            model_name = 'GLTFModel'
+            if 'extras' in gltf_data.scene.gltf.json['asset'] and 'title' in gltf_data.scene.gltf.json['asset']['extras']:
+                model_name = gltf_data.scene.gltf.json['asset']['extras']['title']
+
+            blender_scene(gltf_data.scene, root_name=model_name)
+            print(self.gltf_path)
+            return {'FINISHED'}
+        except Exception:
+            import traceback
+            print(traceback.format_exc())
+            return {'FINISHED'}
+
+        return {'RUNNING_MODAL'}
+
+    def invoke(self, context, event):
+        context.window_manager.modal_handler_add(self)
+        return {'RUNNING_MODAL'}
+
+
 class DownloadThread(threading.Thread):
     def __init__(self, url, uid):
         self.url = url
@@ -745,8 +819,8 @@ class DownloadThread(threading.Thread):
             print('Model already downloaded')
 
         import_model(unzip_archive(archive_path))
-        clean_downloaded_model_dir(self.uid)
-        print('OK')
+        # clean_downloaded_model_dir(self.uid)
+        # print('OK')
 
 
 class GetRequestThread(threading.Thread):
@@ -765,6 +839,7 @@ class LoginThread(threading.Thread):
         threading.Thread.__init__(self)
 
     def run(self):
+        set_login_status('FILE_REFRESH', 'Login to your Sketchfab account')
         requests.post(self.url, hooks={'response': self.handle_login})
 
     def handle_login(self, r, *args, **kwargs):
@@ -773,13 +848,13 @@ class LoginThread(threading.Thread):
             browser_props.skfb_api.access_token = r.json()['access_token']
             browser_props.skfb_api.build_headers()
             print('Logged in => ' + bpy.context.window_manager.sketchfab_browser.skfb_api.access_token)
+            set_login_status('ERROR', 'Failed to authenticate: bad login/password')
             browser_props.skfb_api.request_user_info()
         else:
             if 'error_description' in r.json():
-                login_props = get_sketchfab_login_props()
-                login_props.status = 'Failed to authenticate: bad login/password'
-                # report('ERROR', r.json()['error_description'])
+                set_login_status('ERROR', 'Failed to authenticate: bad login/password')
             else:
+                set_login_status('ERROR', 'Failed to authenticate: bad login/password')
                 print('Login failed.\n {}'.format(r.json()))
 
 
@@ -815,7 +890,7 @@ class LoginPanel(View3DPanel, bpy.types.Panel):
             layout.operator('wm.sketchfab_login', text='Login', icon='WORLD').authenticate = True
             self.bl_label = "Login to your Sketchfab account"
             if props.status:
-                layout.prop(props,'status', icon='ERROR')
+                layout.prop(props,'status', icon=props.status_type)
 
 
 class FiltersPanel(View3DPanel, bpy.types.Panel):
@@ -960,7 +1035,7 @@ class SketchfabBrowse(View3DPanel, bpy.types.Panel):
 
 class SketchfabModel:
     def __init__(self, json_data):
-        self.title = json_data['name']
+        self.title = str(json_data['name'])
         self.author = json_data['user']['displayName']
         self.uid = json_data['uid']
         self.vertex_count = json_data['vertexCount']
@@ -985,7 +1060,6 @@ class SketchfabModelView(bpy.types.Operator):
     uid = bpy.props.StringProperty(name="uid")
 
     def execute(self, context):
-        print('LOADING ' + self.uid)
         return {'FINISHED'}
 
     def draw(self, context):
@@ -1015,7 +1089,7 @@ class SketchfabModelView(bpy.types.Operator):
         except Exception:
             pass
 
-        col.label('License {}'.format(model.license), icon='FILE_SCRIPT')
+        col.label('License {}'.format(model.license if model.license else '(fetching)'), icon='FILE_SCRIPT')
 
         user_logged = skfb.skfb_api.is_user_logged()
 
@@ -1063,7 +1137,6 @@ def clear_search():
     skfb.has_loaded_thumbnails = False
     skfb.search_results.clear()
     skfb.custom_icons.clear()
-    clean_thumbnail_directory()
     bpy.data.window_managers['WinMan']['result_previews'] = 0
 
 
@@ -1154,7 +1227,6 @@ class VersionPanel(View3DPanel, bpy.types.Panel):
         rr = self.layout.row()
         rr.operator('wm.skfb_help', text='Documentation', icon='QUESTION')
         rr.operator('wm.skfb_report_issue', text='Report an issue', icon='ERROR')
-        rr.operator('wm.sketchfab_debug', text='DEBUG')
 
 class SketchfabNewVersion(bpy.types.Operator):
     bl_idname = "wm.skfb_new_version"
@@ -1225,6 +1297,7 @@ classes = (
     SketchfabNewVersion,
     SketchfabReportIssue,
     SketchfabHelp,
+    ImportModalOperator,
 
     # Misc and Debug
     SketchfabPopup,
@@ -1269,8 +1342,8 @@ def register():
 
 
 def unregister():
-    sketchfab_icon.clear()
-    del sketchfab_icon
+    # sketchfab_icon.clear()
+    # del sketchfab_icon
 
     for cls in classes:
         bpy.utils.unregister_class(cls)
@@ -1278,12 +1351,9 @@ def unregister():
     del bpy.types.WindowManager.sketchfab_api
     del bpy.types.WindowManager.sketchfab_browser
     del bpy.types.WindowManager.sketchfab_browser_proxy
-
     del bpy.types.WindowManager.result_previews
 
-    if 'thumbnails' in preview_collection:
-        bpy.utils.previews.remove(preview_collection['thumbnails'])
-        del preview_collection['thumbnails']
+    clean_thumbnail_directory()
 
 
 if __name__ == "__main__":
