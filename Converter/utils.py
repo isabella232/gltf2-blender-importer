@@ -48,11 +48,9 @@ class Conversion():
         mat_input =  Matrix([mat_input[0:4], mat_input[4:8], mat_input[8:12], mat_input[12:16]])
         mat_input.transpose()
 
-        s = mat_input.to_scale()
-        rotation = mat_input.to_quaternion()
-        location = mat_input.to_translation()
-
-        return Conversion.matrix_from_trs(Conversion.location(location), Conversion.matrix_quaternion(rotation), Conversion.scale(s))
+        # Use decompose() here since to_quaternion() for some reasons return a different result for rotation in the tricky case of a negative scale
+        location, rotation, scale = mat_input.decompose()
+        return Conversion.matrix_from_trs(Conversion.location(location), Conversion.matrix_quaternion(rotation), Conversion.scale(scale))
 
     @staticmethod
     def quaternion(q):
