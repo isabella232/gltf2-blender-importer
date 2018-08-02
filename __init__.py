@@ -177,8 +177,7 @@ class SketchfabApi:
     def login(self, email, password):
         url = '{}&username={}&password={}'.format(SKETCHFAB_OAUTH, email, password)
         if True:
-            thread = LoginThread(url)
-            thread.start()
+            bpy.ops.wm.login_modal('INVOKE_DEFAULT')
         else:
             requests.post(url, hooks={'response': self.parse_login})
 
@@ -316,13 +315,20 @@ def set_login_status(status_type, status):
     login_props.status = status
     login_props.status_type = status_type
 
+def set_import_status(status):
+    props = get_sketchfab_props()
+    props.import_status = status
+
+def set_results_status(status):
+    props = get_sketchfab_props()
+    props.result_size = 8.0 if status else 7.9
+    print(props.result_size)
+
 # Property used for login (importer + future exporter)
 class SketchfabLoginProps(bpy.types.PropertyGroup):
 
     def update_tr(self, context):
         if not self.password:
-            set_login_status('ERROR', 'Password field is empty')
-            print('ok')
             return
 
         self.status = ''
@@ -487,6 +493,8 @@ class SketchfabBrowserProps(bpy.types.PropertyGroup):
 
     is_latest_version = False
 
+    import_status = StringProperty(name='import', default='')
+
 
 def list_current_results(self, context):
     skfb = get_sketchfab_props()
@@ -521,9 +529,11 @@ def draw_filters(layout, context):
     props = get_sketchfab_props_proxy()
     col = layout.box().column(align=True)
 
-    col.prop(props, "animated")
     col.prop(props, "pbr")
     col.prop(props, "staffpick")
+    # col.prop(props, "animated")
+
+    col.separator()
     col.prop(props, "categories")
 
     col.label('Sort by')
@@ -558,8 +568,13 @@ def draw_model_info(layout, model, context):
     p2.operator("wm.sketchfab_view", text="View on Sketchfab", icon='WORLD').model_uid = model.uid
 
     p3 = layout.column(align=True)
-    p3.enabled = get_sketchfab_props().skfb_api.is_user_logged()
+
+    skfb = get_sketchfab_props()
+    p3.enabled = skfb.skfb_api.is_user_logged()
     downloadlabel = "Import model ({})".format(model.download_size if model.download_size else 'fetching data') if p3.enabled is True else 'You need to be logged in to download a model'
+    if skfb.import_status:
+        downloadlabel = skfb.import_status
+
     download_icon = 'EXPORT' if p3.enabled else 'INFO'
     p3.label('')
     p3.operator("wm.sketchfab_download", icon=download_icon, text=downloadlabel, translate=False, emboss=True).model_uid = model.uid
@@ -579,6 +594,7 @@ def get_uid_from_model_url(model_url):
 
 def unzip_archive(archive_path):
     if os.path.exists(archive_path):
+        set_import_status('Unzipping model')
         import zipfile
         zip_ref = zipfile.ZipFile(archive_path, 'r')
 
@@ -616,6 +632,7 @@ def import_model(gltf_path):
 def build_search_request(query, pbr, animated, staffpick, face_count, category, sort_by):
     final_query = '&q={}'.format(query)
 
+    # Disabled until animation import is implemented
     if animated:
         final_query = final_query + '&animated=true'
 
@@ -646,7 +663,6 @@ def build_search_request(query, pbr, animated, staffpick, face_count, category, 
     if pbr:
         final_query = final_query + '&pbr_type=metalness'
 
-    print(final_query)
     return final_query
 
 
@@ -740,6 +756,68 @@ class ImportThread(threading.Thread):
             import traceback
             print(traceback.format_exc())
 
+
+class LoginModal(bpy.types.Operator):
+    bl_idname = "wm.login_modal"
+    bl_label = "Import glTF model into Sketchfab"
+    bl_options = {'INTERNAL'}
+
+    is_logging = BoolProperty(default=False)
+
+
+    def __init__(self):
+        print('start')
+
+    def __del__(self):
+        print('END')
+
+    def exectue(self, context):
+        print('LOGIN')
+        return {'FINISHED'}
+
+    def handle_login(self, r, *args, **kwargs):
+        browser_props = get_sketchfab_props()
+        print("RESPONSE")
+        if r.status_code == 200 and 'access_token' in r.json():
+            browser_props.skfb_api.access_token = r.json()['access_token']
+            browser_props.skfb_api.build_headers()
+            print('Logged in => ' + bpy.context.window_manager.sketchfab_browser.skfb_api.access_token)
+            set_login_status('INFO', '')
+            browser_props.skfb_api.request_user_info()
+        else:
+            if 'error_description' in r.json():
+                set_login_status('ERROR', 'Failed to authenticate: bad login/password')
+            else:
+                set_login_status('ERROR', 'Failed to authenticate: bad login/password')
+                print('Login failed.\n {}'.format(r.json()))
+
+        self.is_logging = False
+
+
+    def modal(self, context, event):
+        if self.is_logging:
+            print(self.is_logging)
+            set_login_status('FILE_REFRESH', 'Login to your Sketchfab account...')
+            return {'RUNNING_MODAL'}
+        else:
+            return {'FINISHED'}
+
+    def invoke(self, context, event):
+        print('invoke')
+        self.is_logging = True
+        context.window_manager.modal_handler_add(self)
+        login_props = get_sketchfab_login_props()
+        if not login_props.password:
+            set_login_status('ERROR', 'Failed to authenticate: bad login/password')
+            return {'FINISHED'}
+        else:
+            url = '{}&username={}&password={}'.format(SKETCHFAB_OAUTH, login_props.email, login_props.password)
+            requests.post(url, hooks={'response': self.handle_login})
+
+
+            return {'RUNNING_MODAL'}
+
+
 class ImportModalOperator(bpy.types.Operator):
     bl_idname = "wm.import_modal"
     bl_label = "Import glTF model into Sketchfab"
@@ -770,16 +848,19 @@ class ImportModalOperator(bpy.types.Operator):
 
             blender_scene(gltf_data.scene, root_name=model_name)
             print(self.gltf_path)
+            set_import_status('')
             return {'FINISHED'}
         except Exception:
             import traceback
             print(traceback.format_exc())
+            set_import_status('')
             return {'FINISHED'}
 
         return {'RUNNING_MODAL'}
 
     def invoke(self, context, event):
         context.window_manager.modal_handler_add(self)
+        set_import_status('Importing...')
         return {'RUNNING_MODAL'}
 
 
@@ -790,6 +871,7 @@ class DownloadThread(threading.Thread):
         threading.Thread.__init__(self)
 
     def run(self):
+        set_import_status('Downloading model')
         r = requests.get(self.url, stream=True)
         temp_dir = os.path.join(SKFB_MODEL_DIR, self.uid)
         if not os.path.exists(temp_dir):
@@ -833,31 +915,6 @@ class GetRequestThread(threading.Thread):
         requests.get(self.url, hooks={'response': self.callback})
 
 
-class LoginThread(threading.Thread):
-    def __init__(self, url):
-        self.url = url
-        threading.Thread.__init__(self)
-
-    def run(self):
-        set_login_status('FILE_REFRESH', 'Login to your Sketchfab account')
-        requests.post(self.url, hooks={'response': self.handle_login})
-
-    def handle_login(self, r, *args, **kwargs):
-        browser_props = get_sketchfab_props()
-        if r.status_code == 200 and 'access_token' in r.json():
-            browser_props.skfb_api.access_token = r.json()['access_token']
-            browser_props.skfb_api.build_headers()
-            print('Logged in => ' + bpy.context.window_manager.sketchfab_browser.skfb_api.access_token)
-            set_login_status('ERROR', 'Failed to authenticate: bad login/password')
-            browser_props.skfb_api.request_user_info()
-        else:
-            if 'error_description' in r.json():
-                set_login_status('ERROR', 'Failed to authenticate: bad login/password')
-            else:
-                set_login_status('ERROR', 'Failed to authenticate: bad login/password')
-                print('Login failed.\n {}'.format(r.json()))
-
-
 # Panels
 class View3DPanel:
     bl_space_type = 'VIEW_3D'
@@ -884,6 +941,8 @@ class LoginPanel(View3DPanel, bpy.types.Panel):
         if props.skfb_api.is_user_logged():
             self.bl_label = 'Logged in as {}'.format(props.skfb_api.get_user_info())
             layout.operator('wm.sketchfab_login', text='Logout', icon='GO_LEFT').authenticate = False
+            if props.status:
+                layout.prop(props,'status', icon=props.status_type)
         else:
             layout.prop(props, "email")
             layout.prop(props, "password")
@@ -1011,12 +1070,14 @@ class SketchfabLogger(bpy.types.Operator):
     authenticate = BoolProperty(default=True)
 
     def execute(self, context):
+        set_login_status('FILE_REFRESH', 'Login to your Sketchfab account...')
         wm = context.window_manager
         if self.authenticate and wm.sketchfab_api.password:
             wm.sketchfab_browser.skfb_api.login(wm.sketchfab_api.email, wm.sketchfab_api.password)
         else:
             wm.sketchfab_browser.skfb_api.logout()
             wm.sketchfab_api.password = ''
+            set_login_status('FILE_REFRESH', '')
         return {'FINISHED'}
 
 
@@ -1298,6 +1359,7 @@ classes = (
     SketchfabReportIssue,
     SketchfabHelp,
     ImportModalOperator,
+    LoginModal,
 
     # Misc and Debug
     SketchfabPopup,
