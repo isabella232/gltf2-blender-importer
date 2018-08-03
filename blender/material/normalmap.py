@@ -29,9 +29,17 @@ def create_blender_normalmap_cycles(gltf_normalmap, mat_name):
     node_tree = material.node_tree
 
     blender_texture(gltf_normalmap.texture)
-    
+
     # retrieve principled node and output node
-    principled = [node for node in node_tree.nodes if node.type == "BSDF_PRINCIPLED"][0]
+    principled = None
+    diffuse   = None
+    glossy    = None
+    if len([node for node in node_tree.nodes if node.type == "BSDF_PRINCIPLED"]) != 0:
+        principled = [node for node in node_tree.nodes if node.type == "BSDF_PRINCIPLED"][0]
+    else:
+        #No principled, we are probably coming from extension
+        diffuse = [node for node in node_tree.nodes if node.type == "BSDF_DIFFUSE"][0]
+        glossy  = [node for node in node_tree.nodes if node.type == "BSDF_GLOSSY"][0]
 
     # add nodes
     mapping = node_tree.nodes.new('ShaderNodeMapping')
@@ -42,6 +50,7 @@ def create_blender_normalmap_cycles(gltf_normalmap, mat_name):
 
     text  = node_tree.nodes.new('ShaderNodeTexImage')
     text.image = bpy.data.images[gltf_normalmap.texture.image.blender_image_name]
+    text.label = 'NORMALMAP'
     text.color_space = 'NONE'
     text.location = -500, -500
 
@@ -55,7 +64,12 @@ def create_blender_normalmap_cycles(gltf_normalmap, mat_name):
     node_tree.links.new(normalmap_node.inputs[1], text.outputs[0])
 
     # following  links will modify PBR node tree
-    node_tree.links.new(principled.inputs[17], normalmap_node.outputs[0])
+    if principled:
+        node_tree.links.new(principled.inputs[17], normalmap_node.outputs[0])
+    if diffuse:
+        node_tree.links.new(diffuse.inputs[2], normalmap_node.outputs[0])
+    if glossy:
+        node_tree.links.new(glossy.inputs[2], normalmap_node.outputs[0])
 
 def blender_normalmap(gltf_normalmap, mat_name):
     engine = bpy.context.scene.render.engine

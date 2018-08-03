@@ -23,6 +23,7 @@
 
 import bpy
 from .texture import *
+from .helpers import *
 
 def create_blender_cycles(gltf_pbr, mat_name):
     material = bpy.data.materials[mat_name]
@@ -35,7 +36,7 @@ def create_blender_cycles(gltf_pbr, mat_name):
             node_tree.nodes.remove(node)
 
     output_node = node_tree.nodes[0]
-    output_node.location = 1000,0
+    output_node.location = 1250,0
 
     # create PBR node
     principled = node_tree.nodes.new('ShaderNodeBsdfPrincipled')
@@ -91,6 +92,7 @@ def create_blender_cycles(gltf_pbr, mat_name):
         # create UV Map / Mapping / Texture nodes / separate & math and combine
         text_node = node_tree.nodes.new('ShaderNodeTexImage')
         text_node.image = bpy.data.images[gltf_pbr.baseColorTexture.image.blender_image_name]
+        text_node.label = 'BASE COLOR'
         text_node.location = -1000,500
 
         combine = node_tree.nodes.new('ShaderNodeCombineRGB')
@@ -188,6 +190,7 @@ def create_blender_cycles(gltf_pbr, mat_name):
         # create UV Map / Mapping / Texture nodes / separate & math and combine
         text_node = node_tree.nodes.new('ShaderNodeTexImage')
         text_node.image = bpy.data.images[gltf_pbr.baseColorTexture.image.blender_image_name]
+        text_node.label = 'BASE COLOR'
         if gltf_pbr.vertex_color:
             text_node.location = -2000,500
         else:
@@ -245,6 +248,7 @@ def create_blender_cycles(gltf_pbr, mat_name):
         blender_texture(gltf_pbr.metallicRoughnessTexture)
         metallic_text = node_tree.nodes.new('ShaderNodeTexImage')
         metallic_text.image = bpy.data.images[gltf_pbr.metallicRoughnessTexture.image.blender_image_name]
+        metallic_text.label = 'METALLIC ROUGHNESS'
         metallic_text.color_space = 'NONE'
         metallic_text.location = -500,0
 
@@ -272,6 +276,7 @@ def create_blender_cycles(gltf_pbr, mat_name):
 
         metallic_text = node_tree.nodes.new('ShaderNodeTexImage')
         metallic_text.image = bpy.data.images[gltf_pbr.metallicRoughnessTexture.image.blender_image_name]
+        metallic_text.label = 'METALLIC ROUGHNESS'
         metallic_text.color_space = 'NONE'
         metallic_text.location = -1000,0
 
@@ -319,3 +324,86 @@ def blender_pbr(gltf_pbr, mat_name):
         create_blender_cycles(gltf_pbr, mat_name)
     # else:
     #     pass #TODO for internal / Eevee in future 2.8
+
+def get_base_color_node(node_tree):
+    """ returns the last node of the diffuse block """
+
+    for node in node_tree.nodes:
+        if node.label == 'BASE COLOR':
+            return node
+
+    return None
+
+def blender_alpha(gltf_mat, mat_name):
+    material = bpy.data.materials[mat_name]
+    node_tree = material.node_tree
+
+    # Add nodes for basic transparency
+    # Add mix shader between output and Principled BSDF
+    trans = node_tree.nodes.new('ShaderNodeBsdfTransparent')
+    trans.location = 750, -500
+    mix = node_tree.nodes.new('ShaderNodeMixShader')
+    mix.location = 1000, 0
+
+    output_surface_input = get_output_surface_input(node_tree)
+    preoutput_node_output = get_preoutput_node_output(node_tree)
+    pre_output_node = output_surface_input.links[0].from_node
+
+    link = output_surface_input.links[0]
+    node_tree.links.remove(link)
+
+    # PBR => Mix input 1
+    node_tree.links.new(preoutput_node_output, mix.inputs[1])
+
+    # Trans => Mix input 2
+    node_tree.links.new(trans.outputs['BSDF'], mix.inputs[2])
+
+    # Mix => Output
+    node_tree.links.new(mix.outputs['Shader'], output_surface_input)
+
+    # alpha blend factor
+    add = node_tree.nodes.new('ShaderNodeMath')
+    add.operation = 'ADD'
+    add.location = 750, -250
+    add.inputs[0].default_value = abs(1.0 - gltf_mat.pbr.baseColorFactor[3])
+    add.inputs[1].default_value = 0.0
+    node_tree.links.new(add.outputs['Value'], mix.inputs[0])
+
+    # Take diffuse texture alpha into account if any
+    diffuse_texture = get_base_color_node(node_tree)
+    if diffuse_texture:
+        inverter = node_tree.nodes.new('ShaderNodeInvert')
+        inverter.location = 250, -250
+        inverter.inputs[1].default_value = (1.0, 1.0, 1.0, 1.0)
+        node_tree.links.new(diffuse_texture.outputs['Alpha'], inverter.inputs[0])
+
+        mult = node_tree.nodes.new('ShaderNodeMath')
+        mult.operation = 'MULTIPLY' if gltf_mat.alphaMode == 'BLEND' else 'GREATER_THAN'
+        mult.location = 500, -250
+        mult.inputs[1].default_value = 1.0 if gltf_mat.alphaMode == 'BLEND' else gltf_mat.alphaCutoff
+        node_tree.links.new(inverter.outputs['Color'], mult.inputs[0])
+        node_tree.links.new(mult.outputs['Value'], add.inputs[0])
+
+def blender_single_sided(gltf_mat, mat_name):
+    # The trick to reflect this in Blender cycle is to use Backface input from Geometry node, and make the mesh transparent if backface.
+    # The issue with this technique is that it will cast shadows on the inner mesh (in case of outline/toon) so the user will need to disable
+    # the Shadow option in the outline mesh if needed
+    material = bpy.data.materials[mat_name]
+    node_tree = material.node_tree
+    output_surface_input = get_output_surface_input(node_tree)
+    pre_output = get_preoutput_node_output(node_tree)
+
+    ll = output_surface_input.links[0]
+    node_tree.links.remove(ll)
+    trans = node_tree.nodes.new('ShaderNodeBsdfTransparent')
+    trans.location = 500, -750
+    mix = node_tree.nodes.new('ShaderNodeMixShader')
+    mix.location = 250, -750
+    geom = node_tree.nodes.new('ShaderNodeNewGeometry')
+    geom.location
+
+    node_tree.links.new(pre_output, mix.inputs[1])
+    node_tree.links.new(trans.outputs['BSDF'], mix.inputs[2])
+    node_tree.links.new(geom.outputs['Backfacing'], mix.inputs[0])
+    node_tree.links.new(mix.outputs['Shader'], node_tree.nodes['Material Output'].inputs['Surface'])
+

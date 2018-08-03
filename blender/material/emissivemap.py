@@ -22,6 +22,7 @@
  """
 import bpy
 from .texture import *
+from .helpers import *
 
 def create_blender_cycles(blender_emissive, mat_name):
     material = bpy.data.materials[mat_name]
@@ -30,7 +31,8 @@ def create_blender_cycles(blender_emissive, mat_name):
     blender_texture(blender_emissive.texture)
 
     # retrieve principled node and output node
-    principled = [node for node in node_tree.nodes if node.type == "BSDF_PRINCIPLED"][0]
+    principled = get_preoutput_node_output(node_tree)
+
     output = [node for node in node_tree.nodes if node.type == 'OUTPUT_MATERIAL'][0]
 
     # add nodes
@@ -48,6 +50,7 @@ def create_blender_cycles(blender_emissive, mat_name):
 
     text  = node_tree.nodes.new('ShaderNodeTexImage')
     text.image = bpy.data.images[blender_emissive.texture.image.blender_image_name]
+    text.label = 'EMISSIVE'
     text.location = -1000,1000
     add = node_tree.nodes.new('ShaderNodeAddShader')
     add.location = 500,500
@@ -81,7 +84,7 @@ def create_blender_cycles(blender_emissive, mat_name):
 
     # following  links will modify PBR node tree
     node_tree.links.new(add.inputs[0], emit.outputs[0])
-    node_tree.links.new(add.inputs[1], principled.outputs[0])
+    node_tree.links.new(add.inputs[1], principled)
     node_tree.links.new(output.inputs[0], add.outputs[0])
 
 def blender_emissive(gltf_emissive, mat_name):
