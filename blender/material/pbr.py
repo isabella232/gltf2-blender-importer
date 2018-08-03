@@ -23,6 +23,7 @@
 
 import bpy
 from .texture import *
+from .helpers import *
 
 def create_blender_cycles(gltf_pbr, mat_name):
     material = bpy.data.materials[mat_name]
@@ -35,7 +36,7 @@ def create_blender_cycles(gltf_pbr, mat_name):
             node_tree.nodes.remove(node)
 
     output_node = node_tree.nodes[0]
-    output_node.location = 1000,0
+    output_node.location = 1250,0
 
     # create PBR node
     principled = node_tree.nodes.new('ShaderNodeBsdfPrincipled')
@@ -323,7 +324,6 @@ def get_base_color_node(node_tree):
     """ returns the last node of the diffuse block """
 
     for node in node_tree.nodes:
-        print(node.name)
         if node.label == 'BASE COLOR':
             return node
 
@@ -336,22 +336,30 @@ def blender_alpha(gltf_mat, mat_name):
     # Add nodes for basic transparency
     # Add mix shader between output and Principled BSDF
     trans = node_tree.nodes.new('ShaderNodeBsdfTransparent')
+    trans.location = 750, -500
     mix = node_tree.nodes.new('ShaderNodeMixShader')
-    link = node_tree.nodes['Principled BSDF'].outputs['BSDF'].links[0]
+    mix.location = 1000, 0
+
+    output_surface_input = get_output_surface_input(node_tree)
+    preoutput_node_output = get_preoutput_node_output(node_tree)
+    pre_output_node = output_surface_input.links[0].from_node
+
+    link = output_surface_input.links[0]
     node_tree.links.remove(link)
 
     # PBR => Mix input 1
-    node_tree.links.new(node_tree.nodes['Principled BSDF'].outputs['BSDF'], mix.inputs[1])
+    node_tree.links.new(preoutput_node_output, mix.inputs[1])
 
     # Trans => Mix input 2
     node_tree.links.new(trans.outputs['BSDF'], mix.inputs[2])
 
     # Mix => Output
-    node_tree.links.new(mix.outputs['Shader'], node_tree.nodes['Material Output'].inputs['Surface'])
+    node_tree.links.new(mix.outputs['Shader'], output_surface_input)
 
     # alpha blend factor
     add = node_tree.nodes.new('ShaderNodeMath')
     add.operation = 'ADD'
+    add.location = 750, -250
     add.inputs[1].default_value = abs(1.0 - gltf_mat.pbr.baseColorFactor[3])
     node_tree.links.new(add.outputs['Value'], mix.inputs[0])
 
@@ -359,11 +367,13 @@ def blender_alpha(gltf_mat, mat_name):
     diffuse_texture = get_base_color_node(node_tree)
     if diffuse_texture:
         inverter = node_tree.nodes.new('ShaderNodeInvert')
+        inverter.location = 250, -250
         inverter.inputs[1].default_value = (1.0, 1.0, 1.0, 1.0)
         node_tree.links.new(diffuse_texture.outputs['Alpha'], inverter.inputs[0])
 
         mult = node_tree.nodes.new('ShaderNodeMath')
         mult.operation = 'MULTIPLY' if gltf_mat.alphaMode == 'BLEND' else 'GREATER_THAN'
+        mult.location = 500, -250
         mult.inputs[1].default_value = 1.0 if gltf_mat.alphaMode == 'BLEND' else 0.0
         node_tree.links.new(inverter.outputs['Color'], mult.inputs[0])
         node_tree.links.new(mult.outputs['Value'], add.inputs[0])
@@ -374,16 +384,20 @@ def blender_single_sided(gltf_mat, mat_name):
     # the Shadow option in the outline mesh if needed
     material = bpy.data.materials[mat_name]
     node_tree = material.node_tree
+    output_surface_input = get_output_surface_input(node_tree)
+    pre_output = get_preoutput_node_output(node_tree)
 
-    ll = node_tree.nodes['Material Output'].inputs['Surface'].links[0]
-    pre_output = ll.from_node
-
+    ll = output_surface_input.links[0]
+    node_tree.links.remove(ll)
     trans = node_tree.nodes.new('ShaderNodeBsdfTransparent')
+    trans.location = 500, -750
     mix = node_tree.nodes.new('ShaderNodeMixShader')
+    mix.location = 250, -750
     geom = node_tree.nodes.new('ShaderNodeNewGeometry')
+    geom.location
 
-    node_tree.links.new(pre_output.outputs['BSDF'], mix.inputs[1])
+    node_tree.links.new(pre_output, mix.inputs[1])
     node_tree.links.new(trans.outputs['BSDF'], mix.inputs[2])
     node_tree.links.new(geom.outputs['Backfacing'], mix.inputs[0])
     node_tree.links.new(mix.outputs['Shader'], node_tree.nodes['Material Output'].inputs['Surface'])
-    #node_tree.links.remove(ll)
+

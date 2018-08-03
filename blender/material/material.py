@@ -3,7 +3,7 @@ from .pbr import *
 from .emissivemap import *
 from .normalmap import *
 from .occlusionmap import *
-
+from ..extensions.KHR_materials_pbrSpecularGlossiness import *
 def blender_material(current):
     if current.name is not None:
         name = current.name
@@ -14,7 +14,10 @@ def blender_material(current):
     current.blender_material = mat.name
 
     # create pbr material
-    blender_pbr(current.pbr, mat.name)
+    if hasattr(current, 'KHR_materials_pbrSpecularGlossiness'):
+        blender_pbr_specular(current, mat.name)
+    else:
+        blender_pbr(current.pbr, mat.name)
 
     if current.alphaMode != 'OPAQUE':
         blender_alpha(current, mat.name)
