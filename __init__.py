@@ -269,46 +269,41 @@ class SketchfabApi:
             print(url + 'is None')
             return
 
+        r = requests.get(url, stream=True)
+        temp_dir = os.path.join(SKFB_MODEL_DIR, uid)
+        if not os.path.exists(temp_dir):
+            os.makedirs(temp_dir)
 
-        if False:
-            thread = DownloadThread(url, uid)
-            thread.start()
+        archive_path = os.path.join(temp_dir, '{}.zip'.format(uid))
+        if not os.path.exists(archive_path):
+            wm = bpy.context.window_manager
+            wm.progress_begin(0, 100)
+            set_log("Downloading model..")
+            with open(archive_path, "wb") as f:
+                total_length = r.headers.get('content-length')
+                if total_length is None:  # no content length header
+                    f.write(r.content)
+                else:
+                    dl = 0
+                    total_length = int(total_length)
+                    for data in r.iter_content(chunk_size=4096):
+                        dl += len(data)
+                        f.write(data)
+                        done = int(100 * dl / total_length)
+                        wm.progress_update(done)
+                        set_log("Downloading model..{}%".format(done))
+
+            wm.progress_end()
         else:
-            r = requests.get(url, stream=True)
-            temp_dir = os.path.join(SKFB_MODEL_DIR, uid)
-            if not os.path.exists(temp_dir):
-                os.makedirs(temp_dir)
+            print('Model already downloaded')
 
-            archive_path = os.path.join(temp_dir, '{}.zip'.format(uid))
-            if not os.path.exists(archive_path):
-                wm = bpy.context.window_manager
-                wm.progress_begin(0, 100)
-                set_log("Downloading model..")
-                with open(archive_path, "wb") as f:
-                    total_length = r.headers.get('content-length')
-                    if total_length is None:  # no content length header
-                        f.write(r.content)
-                    else:
-                        dl = 0
-                        total_length = int(total_length)
-                        for data in r.iter_content(chunk_size=4096):
-                            dl += len(data)
-                            f.write(data)
-                            done = int(100 * dl / total_length)
-                            wm.progress_update(done)
-                            set_log("Downloading model..{}%".format(done))
-
-                wm.progress_end()
-            else:
-                print('Model already downloaded')
-
-            gltf_path, gltf_zip = unzip_archive(archive_path)
-            import traceback
-            try:
-                import_model(gltf_path)
-                # clean_downloaded_model_dir(uid)
-            except Exception as e:
-                print(traceback.format_exc())
+        gltf_path, gltf_zip = unzip_archive(archive_path)
+        import traceback
+        try:
+            import_model(gltf_path)
+            # clean_downloaded_model_dir(uid)
+        except Exception as e:
+            print(traceback.format_exc())
 
 def set_login_status(status_type, status):
     login_props = get_sketchfab_login_props()
@@ -318,11 +313,6 @@ def set_login_status(status_type, status):
 def set_import_status(status):
     props = get_sketchfab_props()
     props.import_status = status
-
-def set_results_status(status):
-    props = get_sketchfab_props()
-    props.result_size = 8.0 if status else 7.9
-    print(props.result_size)
 
 # Property used for login (importer + future exporter)
 class SketchfabLoginProps(bpy.types.PropertyGroup):
@@ -524,25 +514,6 @@ def list_current_results(self, context):
     preview_collection['thumbnails'] = tuple(res)
     skfb.has_loaded_thumbnails = not missing_thumbnail
     return preview_collection['thumbnails']
-
-def draw_filters(layout, context):
-    props = get_sketchfab_props_proxy()
-    col = layout.box().column(align=True)
-
-    col.prop(props, "pbr")
-    col.prop(props, "staffpick")
-    # col.prop(props, "animated")
-
-    col.separator()
-    col.prop(props, "categories")
-
-    col.label('Sort by')
-    sb = col.row()
-    sb.prop(props, "sort_by", expand=True)
-
-    col.label('Face count')
-    col.prop(props, "face_count", expand=True)
-
 
 def draw_search(layout, context):
     layout.row()
@@ -764,13 +735,6 @@ class LoginModal(bpy.types.Operator):
 
     is_logging = BoolProperty(default=False)
 
-
-    def __init__(self):
-        print('start')
-
-    def __del__(self):
-        print('END')
-
     def exectue(self, context):
         print('LOGIN')
         return {'FINISHED'}
@@ -825,12 +789,6 @@ class ImportModalOperator(bpy.types.Operator):
 
     gltf_path = StringProperty()
 
-    def __init__(self):
-        print('start')
-
-    def __del__(self):
-        print('END')
-
     def exectue(self, context):
         print('IMPORT')
         return {'FINISHED'}
@@ -847,7 +805,6 @@ class ImportModalOperator(bpy.types.Operator):
                 model_name = gltf_data.scene.gltf.json['asset']['extras']['title']
 
             blender_scene(gltf_data.scene, root_name=model_name)
-            print(self.gltf_path)
             set_import_status('')
             return {'FINISHED'}
         except Exception:
@@ -862,47 +819,6 @@ class ImportModalOperator(bpy.types.Operator):
         context.window_manager.modal_handler_add(self)
         set_import_status('Importing...')
         return {'RUNNING_MODAL'}
-
-
-class DownloadThread(threading.Thread):
-    def __init__(self, url, uid):
-        self.url = url
-        self.uid = uid
-        threading.Thread.__init__(self)
-
-    def run(self):
-        set_import_status('Downloading model')
-        r = requests.get(self.url, stream=True)
-        temp_dir = os.path.join(SKFB_MODEL_DIR, self.uid)
-        if not os.path.exists(temp_dir):
-            os.makedirs(temp_dir)
-
-        archive_path = os.path.join(temp_dir, '{}.zip'.format(self.uid))
-
-        if not os.path.exists(archive_path):
-            wm = bpy.context.window_manager
-            wm.progress_begin(0, 100)
-            with open(archive_path, "wb") as f:
-                total_length = r.headers.get('content-length')
-
-                if total_length is None:
-                    f.write(r.content)
-                else:
-                    dl = 0
-                    total_length = int(total_length)
-                    for data in r.iter_content(chunk_size=4096):
-                        dl += len(data)
-                        f.write(data)
-                        done = int(100 * dl / total_length)
-                        wm.progress_update(done)
-
-            wm.progress_end()
-        else:
-            print('Model already downloaded')
-
-        import_model(unzip_archive(archive_path))
-        # clean_downloaded_model_dir(self.uid)
-        # print('OK')
 
 
 class GetRequestThread(threading.Thread):
@@ -958,10 +874,22 @@ class FiltersPanel(View3DPanel, bpy.types.Panel):
     bl_options = {'DEFAULT_CLOSED'}
 
     def draw(self, context):
-        # self.layout.box().column(align=True).operator('wm.sketchfab_browse', text="Browse Sketchfab")
-        # self.layout.label('Debug')
-        # self.layout.operator('wm.skfb_debug', 'PERFORM')
-        draw_filters(self.layout, context)
+        props = get_sketchfab_props_proxy()
+        col = layout.box().column(align=True)
+
+        col.prop(props, "pbr")
+        col.prop(props, "staffpick")
+        # col.prop(props, "animated")
+
+        col.separator()
+        col.prop(props, "categories")
+
+        col.label('Sort by')
+        sb = col.row()
+        sb.prop(props, "sort_by", expand=True)
+
+        col.label('Face count')
+        col.prop(props, "face_count", expand=True)
 
 
 def draw_results_icons(results, props, nbcol=4):
@@ -1010,18 +938,13 @@ class ResultsPanel(View3DPanel, bpy.types.Panel):
         if props.skfb_api.next_results_url:
             rrr.operator("wm.sketchfab_search_next", text="Next page", icon='RIGHTARROW')
 
-        if 'current' not in props.search_results:
-            self.bl_label = 'No results'
-            return
-
-        elif len(props.search_results['current']) == 0:
-            self.bl_label = 'No results'
-            return
-        else:
-            self.bl_label = "Results"
-
         if props.use_preview:
-            result_label = 'Select a model {}'.format('in current result page' if props.skfb_api.next_results_url else '{} results'.format(len(props.search_results['current'])))
+            result_label = 'Select a model '
+            if props.skfb_api.next_results_url:
+                result_label = result_label + 'in current result page'
+            elif 'current' in props.search_results:
+                result_label = result_label + '({} results)'.format(len(props.search_results['current']))
+
             col.label(result_label)
             try:
                 col.template_icon_view(bpy.context.window_manager, 'result_previews', show_labels=True, scale=8.0)
