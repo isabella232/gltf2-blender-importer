@@ -30,8 +30,9 @@ from .rig import *
 
 from mathutils import Matrix, Vector, Quaternion
 
-def blender_node(gltf_node, parent):
+def blender_node(gltf_node, parent, blender_scene):
     def set_transforms(gltf_node, obj, parent):
+        obj.rotation_mode = 'QUATERNION'
         if hasattr(gltf_node, 'matrix'):
             obj.matrix_world = Conversion.matrix(gltf_node.matrix)
         elif gltf_node.is_joint:
@@ -39,23 +40,8 @@ def blender_node(gltf_node, parent):
             obj.matrix_world = Conversion.get_node_matrix(gltf_node) * delta.inverted().to_matrix().to_4x4()
         else:
             obj.location = Conversion.location(gltf_node.translation)
-            obj.rotation_mode = 'QUATERNION'
             obj.rotation_quaternion = Conversion.quaternion(gltf_node.rotation)
             obj.scale = Conversion.scale(gltf_node.scale)
-
-        # if parent is None:
-        #     obj.matrix_world =  gltf_node.transform
-        #     return
-
-        # for node in gltf_node.gltf.scene.nodes.values(): # TODO if parent is in another scene
-        #     if node.index == parent:
-        #         if node.is_joint == True:
-        #             
-        #             
-        #             return
-        #         else:
-        #             obj.matrix_world = gltf_node.transform
-        #             return
 
     def set_blender_parent(gltf_node, obj, parent):
         pass
@@ -103,7 +89,7 @@ def blender_node(gltf_node, parent):
         mesh = blender_mesh(gltf_node.mesh, parent)
 
         obj = bpy.data.objects.new(name, mesh)
-        bpy.data.scenes[gltf_node.gltf.blender.scene].objects.link(obj)
+        bpy.data.scenes[blender_scene].objects.link(obj)
         set_transforms(gltf_node, obj, parent)
         gltf_node.blender_object = obj.name
         set_blender_parent(gltf_node, obj, parent)
@@ -111,7 +97,7 @@ def blender_node(gltf_node, parent):
         blender_set_mesh(gltf_node.mesh, mesh, obj)
 
         for child in gltf_node.children:
-            blender_node(child, gltf_node.index)
+            blender_node(child, gltf_node.index, blender_scene)
 
         return
 
@@ -134,13 +120,15 @@ def blender_node(gltf_node, parent):
         else:
             gltf_node.gltf.log.info("Blender create Bone node")
         # Check if corresponding armature is already created, create it if needed
-        if gltf_node.gltf.skins[gltf_node.skin_id].blender_armature_name is None:
-           blender_armature(gltf_node.gltf.skins[gltf_node.skin_id], parent)
+        if not hasattr(gltf_node.gltf.skins[gltf_node.skin_id], 'blender_armature_name'):
+            # FIXME (AurL) this is dirty
+            gltf_node.gltf.skins[gltf_node.skin_id].blender_scene = blender_scene
+            blender_armature(gltf_node.gltf.skins[gltf_node.skin_id], parent)
 
         blender_bone(gltf_node.gltf.skins[gltf_node.skin_id], gltf_node, parent)
 
         for child in gltf_node.children:
-            blender_node(child, gltf_node.index)
+            blender_node(child, gltf_node.index, blender_scene)
 
         return
 
@@ -151,14 +139,14 @@ def blender_node(gltf_node, parent):
     else:
         gltf_node.gltf.log.info("Blender create Empty node")
         obj = bpy.data.objects.new("Node", None)
-    obj.rotation_mode = 'QUATERNION'
-    bpy.data.scenes[gltf_node.gltf.blender.scene].objects.link(obj)
+        
+    bpy.data.scenes[blender_scene].objects.link(obj)
     set_transforms(gltf_node, obj, parent)
     gltf_node.blender_object = obj.name
     set_blender_parent(gltf_node, obj, parent)
 
     for child in gltf_node.children:
-        blender_node(child, gltf_node.index)
+        blender_node(child, gltf_node.index, blender_scene)
 
 
 

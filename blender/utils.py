@@ -28,7 +28,7 @@ class Conversion():
         if hasattr(gltf_node, 'matrix'):
             return Conversion.matrix(gltf_node.matrix)
         else:
-            return Conversion.matrix_from_trs(gltf_node.translation, gltf_node.rotation, gltf_node.scale)
+            return Conversion.matrix_from_trs(Conversion.location(gltf_node.translation), Conversion.quaternion(gltf_node.rotation), Conversion.scale(gltf_node.scale))
 
     def matrix_from_trs(translation, rotation, scale):
         mat = Matrix([
@@ -38,8 +38,8 @@ class Conversion():
             [0, 0, 0, 1]
         ])
 
-        mat = Conversion.matrix_quaternion(rotation).to_matrix().to_4x4() * mat
-        mat = Matrix.Translation(Vector(Conversion.location(translation))) * mat
+        mat = rotation.to_matrix().to_4x4() * mat
+        mat = Matrix.Translation(Vector(translation)) * mat
 
         return mat
 
@@ -48,11 +48,9 @@ class Conversion():
         mat_input =  Matrix([mat_input[0:4], mat_input[4:8], mat_input[8:12], mat_input[12:16]])
         mat_input.transpose()
 
-        s = mat_input.to_scale()
-        rotation = mat_input.to_quaternion()
-        location = mat_input.to_translation()
-
-        return Conversion.matrix_from_trs(location, rotation, s)
+        # Use decompose() here since to_quaternion() for some reasons return a different result for rotation in the tricky case of a negative scale
+        location, rotation, scale = mat_input.decompose()
+        return Conversion.matrix_from_trs(Conversion.location(location), Conversion.matrix_quaternion(rotation), Conversion.scale(scale))
 
     @staticmethod
     def quaternion(q):
@@ -68,4 +66,4 @@ class Conversion():
     
     @staticmethod
     def scale(scale):
-        return scale # TODO test scale animation
+        return [scale[0], scale[2], scale[1]] # TODO test scale animation
