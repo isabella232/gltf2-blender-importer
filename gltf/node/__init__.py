@@ -81,32 +81,6 @@ class Node():
             self.rotation = self.json.get('rotation', [0, 0, 0, 1])
             self.scale = self.json.get('scale', [1, 1, 1])
 
-        # if 'matrix' in self.json.keys():
-        #     return self.gltf.convert.matrix()
-
-        # mat = Matrix()
-
-
-        # if 'scale' in self.json.keys():
-        #     s = self.json['scale']
-        #     mat = Matrix([
-        #         [s[0], 0, 0, 0],
-        #         [0, s[1], 0, 0],
-        #         [0, 0, s[2], 0],
-        #         [0, 0, 0, 1]
-        #     ])
-
-
-        # if 'rotation' in self.json.keys():
-        #     q = self.gltf.convert.quaternion(self.json['rotation'])
-        #     mat = q.to_matrix().to_4x4() * mat
-
-        # if 'translation' in self.json.keys():
-        #     mat = Matrix.Translation(Vector(self.gltf.convert.location(self.json['translation']))) * mat
-
-        # return mat
-
-
     def debug_missing(self):
         keys = [
                 'name',
