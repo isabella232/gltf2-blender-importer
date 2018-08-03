@@ -48,6 +48,7 @@ def create_blender_cycles(blender_emissive, mat_name):
 
     text  = node_tree.nodes.new('ShaderNodeTexImage')
     text.image = bpy.data.images[blender_emissive.texture.image.blender_image_name]
+    text.label = 'EMISSIVE'
     text.location = -1000,1000
     add = node_tree.nodes.new('ShaderNodeAddShader')
     add.location = 500,500
