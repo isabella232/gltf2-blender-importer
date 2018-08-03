@@ -146,6 +146,9 @@ def get_sketchfab_props():
 def get_sketchfab_props_proxy():
     return bpy.context.window_manager.sketchfab_browser_proxy
 
+def run_default_search():
+    searchthr = GetRequestThread(DEFAULT_SEARCH, parse_results)
+    searchthr.start()
 
 def refresh_search2(self, context):
     pprops = get_sketchfab_props_proxy()
@@ -488,6 +491,10 @@ class SketchfabBrowserProps(bpy.types.PropertyGroup):
 
 def list_current_results(self, context):
     skfb = get_sketchfab_props()
+
+    # No results:
+    if 'current' not in skfb.search_results:
+        return preview_collection['default']
 
     if skfb.has_loaded_thumbnails and 'thumbnails' in preview_collection:
         return preview_collection['thumbnails']
@@ -952,9 +959,13 @@ class ResultsPanel(View3DPanel, bpy.types.Panel):
                 print('NO')
                 pass
 
+            if 'current' not in props.search_results or not len(props.search_results['current']):
+                self.bl_label = 'No results'
+                return
+            else:
+                self.bl_label = "Results"
+
             if bpy.context.window_manager.result_previews not in props.search_results['current']:
-                p2 = layout.box().column(align=True)
-                p2.label('Fetching results...')
                 return
 
             model = props.search_results['current'][bpy.context.window_manager.result_previews]
@@ -1307,6 +1318,11 @@ def register():
     sketchfab_icon.load("skfb", "D:\\logo.png", 'IMAGE')
     sketchfab_icon.load("model", "D:\\placeholder.png", 'IMAGE')
 
+    res = []
+    res.append(('NORESULTS', 'empty', "", sketchfab_icon['model'].icon_id, 0))
+    preview_collection['default'] = tuple(res)
+    bpy.types.WindowManager.result_previews = EnumProperty(items=list_current_results)
+
     for cls in classes:
         bpy.utils.register_class(cls)
 
@@ -1320,11 +1336,9 @@ def register():
                 type=SketchfabLoginProps,
                 )
 
-    preview_collection['thumbnails'] = sketchfab_icon
-    bpy.types.WindowManager.result_previews = EnumProperty(items=list_current_results)
-
     requests.get(SKETCHFAB_PLUGIN_VERSION, hooks={'response': check_plugin_version})
 
+    run_default_search()
 
 def unregister():
     # sketchfab_icon.clear()
