@@ -178,7 +178,6 @@ class glTFImporter():
             for anim in self.json['animations']:
                 animation = Animation(anim_idx, self.json['animations'][anim_idx], self)
                 animation.read()
-                print('READ')
                 animation.debug_missing()
                 self.animations[animation.index] = animation
                 anim_idx += 1

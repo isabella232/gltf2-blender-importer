@@ -53,25 +53,17 @@ def blender_scene(gltf_scene, use_current=True, enable_animation=True, root_name
                 obj.name = root_name
 
             obj.location = bpy.context.scene.cursor_location
+            bpy.context.scene.objects.active = obj
+            obj.select = True
 
-            try:
-                for selected in bpy.context.selected_objects:
-                    selected.select = False
-
-                bpy.context.scene.objects.active = obj
-                obj.select = True
-
-            except Exception as e:
-                print(e)
-                pass
-
-    if enable_animation:
-        # Now that all mesh / bones are created, create vertex groups on mesh
-        for armature in gltf_scene.gltf.skins.values():
-            for mesh_id in armature.mesh_ids:
-                create_vertex_groups(armature, mesh_id)
-                assign_vertex_groups(armature, mesh_id)
-                create_armature_modifiers(armature, mesh_id)
+    # Animation is disabled for now
+    # if enable_animation:
+    #     # Now that all mesh / bones are created, create vertex groups on mesh
+    #     for armature in gltf_scene.gltf.skins.values():
+    #         for mesh_id in armature.mesh_ids:
+    #             create_vertex_groups(armature, mesh_id)
+    #             assign_vertex_groups(armature, mesh_id)
+    #             create_armature_modifiers(armature, mesh_id)
 
         # for node in gltf_scene.nodes.values():
         #     blender_animation(node.animation)

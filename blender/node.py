@@ -50,20 +50,21 @@ def blender_node(gltf_node, parent, blender_scene):
 
         for node in gltf_node.gltf.scene.nodes.values(): # TODO if parent is in another scene
             if node.index == parent:
-                if node.is_joint == True:
-                    bpy.ops.object.select_all(action='DESELECT')
-                    bpy.data.objects[node.blender_armature_name].select = True
-                    bpy.context.scene.objects.active = bpy.data.objects[node.blender_armature_name]
-                    bpy.ops.object.mode_set(mode='EDIT')
-                    bpy.data.objects[node.blender_armature_name].data.edit_bones.active = bpy.data.objects[node.blender_armature_name].data.edit_bones[node.blender_bone_name]
-                    bpy.ops.object.mode_set(mode='OBJECT')
-                    bpy.ops.object.select_all(action='DESELECT')
-                    obj.select = True
-                    bpy.data.objects[node.blender_armature_name].select = True
-                    bpy.context.scene.objects.active = bpy.data.objects[node.blender_armature_name]
-                    bpy.ops.object.parent_set(type='BONE', keep_transform=True)
+                # Animation is disabled for now
+                # if node.is_joint == True:
+                #     bpy.ops.object.select_all(action='DESELECT')
+                #     bpy.data.objects[node.blender_armature_name].select = True
+                #     bpy.context.scene.objects.active = bpy.data.objects[node.blender_armature_name]
+                #     bpy.ops.object.mode_set(mode='EDIT')
+                #     bpy.data.objects[node.blender_armature_name].data.edit_bones.active = bpy.data.objects[node.blender_armature_name].data.edit_bones[node.blender_bone_name]
+                #     bpy.ops.object.mode_set(mode='OBJECT')
+                #     bpy.ops.object.select_all(action='DESELECT')
+                #     obj.select = True
+                #     bpy.data.objects[node.blender_armature_name].select = True
+                #     bpy.context.scene.objects.active = bpy.data.objects[node.blender_armature_name]
+                #     bpy.ops.object.parent_set(type='BONE', keep_transform=True)
 
-                    return
+                #     return
                 if node.blender_object:
                     obj.parent = bpy.data.objects[node.blender_object]
                     return
@@ -113,24 +114,24 @@ def blender_node(gltf_node, parent, blender_scene):
 
     #     return
 
+    # Animation is disabled for now
+    # if gltf_node.is_joint:
+    #     if gltf_node.name:
+    #         gltf_node.gltf.log.info("Blender create Bone node " + gltf_node.name)
+    #     else:
+    #         gltf_node.gltf.log.info("Blender create Bone node")
+    #     # Check if corresponding armature is already created, create it if needed
+    #     if not hasattr(gltf_node.gltf.skins[gltf_node.skin_id], 'blender_armature_name'):
+    #         # FIXME (AurL) this is dirty
+    #         gltf_node.gltf.skins[gltf_node.skin_id].blender_scene = blender_scene
+    #         blender_armature(gltf_node.gltf.skins[gltf_node.skin_id], parent)
 
-    if gltf_node.is_joint:
-        if gltf_node.name:
-            gltf_node.gltf.log.info("Blender create Bone node " + gltf_node.name)
-        else:
-            gltf_node.gltf.log.info("Blender create Bone node")
-        # Check if corresponding armature is already created, create it if needed
-        if not hasattr(gltf_node.gltf.skins[gltf_node.skin_id], 'blender_armature_name'):
-            # FIXME (AurL) this is dirty
-            gltf_node.gltf.skins[gltf_node.skin_id].blender_scene = blender_scene
-            blender_armature(gltf_node.gltf.skins[gltf_node.skin_id], parent)
+    #     blender_bone(gltf_node.gltf.skins[gltf_node.skin_id], gltf_node, parent)
 
-        blender_bone(gltf_node.gltf.skins[gltf_node.skin_id], gltf_node, parent)
+    #     for child in gltf_node.children:
+    #         blender_node(child, gltf_node.index, blender_scene)
 
-        for child in gltf_node.children:
-            blender_node(child, gltf_node.index, blender_scene)
-
-        return
+    #     return
 
     # No mesh, no camera. For now, create empty #TODO
     if gltf_node.name:

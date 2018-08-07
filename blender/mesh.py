@@ -28,11 +28,12 @@ from .utils import Conversion
 from .material import *
 
 def blender_mesh(gltf_mesh, parent):
+    # Animation is disabled for now
     # Check if the mesh is rigged, and create armature if needed
-    if gltf_mesh.skin:
-        if gltf_mesh.skin.blender_armature_name is None:
-            # Create empty armature for now
-            gltf_mesh.skin.create_blender_armature(parent)
+    # if gltf_mesh.skin:
+    #     if gltf_mesh.skin.blender_armature_name is None:
+    #         # Create empty armature for now
+    #         gltf_mesh.skin.create_blender_armature(parent)
 
     # Geometry
     if gltf_mesh.name:
