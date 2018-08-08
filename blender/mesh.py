@@ -169,7 +169,7 @@ def blender_primitive(gltf_primitive, verts, edges, faces):
     if gltf_primitive.mat:
 
         # Create Blender material
-        if not gltf_primitive.mat.blender_material:
+        if not hasattr(gltf_primitive.mat, 'blender_material'):
             blender_material(gltf_primitive.mat)
 
     return verts, edges, faces
@@ -190,6 +190,7 @@ def blender_set_normals(gltf_primitive, mesh, offset):
     return offset
 
 def blender_set_UV(gltf_primitive, obj, mesh, offset):
+    gltf_primitive.blender_texcoord = {}
     for texcoord in [attr for attr in gltf_primitive.attributes.keys() if attr[:9] == "TEXCOORD_"]:
         if not texcoord in mesh.uv_textures:
             mesh.uv_textures.new(texcoord)
