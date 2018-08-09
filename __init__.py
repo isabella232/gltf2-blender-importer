@@ -246,6 +246,11 @@ class SketchfabApi:
             except Exception as e:
                 import traceback
                 print(traceback.format_exc())
+        else:
+            skfb = get_sketchfab_props()
+            model = skfb.search_results['current'][uid]
+            skfb.skfb_api.get_download_url(uid)
+            set_import_status("Import model ({})".format(model.download_size if model.download_size else 'fetching data'))
 
 
 class SketchfabLoginProps(bpy.types.PropertyGroup):
