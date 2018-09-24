@@ -23,6 +23,7 @@ import os
 import urllib
 import requests
 import threading
+import time
 from collections import OrderedDict
 
 import bpy
@@ -42,7 +43,7 @@ bl_info = {
     'author': 'Sketchfab',
     'license': 'GPL',
     'deps': '',
-    'version': (0, 0, 85),
+    'version': (0, 0, 90),
     'blender': (2, 7, 9),
     'location': 'View3D > Tools > Sketchfab',
     'warning': '',
@@ -69,6 +70,9 @@ def get_sketchfab_props():
 def get_sketchfab_props_proxy():
     return bpy.context.window_manager.sketchfab_browser_proxy
 
+def get_sketchfab_model(uid):
+    skfb = get_sketchfab_props()
+    return skfb.search_results['current'][uid]
 
 def run_default_search():
     searchthr = GetRequestThread(Config.DEFAULT_SEARCH, parse_results)
@@ -190,28 +194,44 @@ class SketchfabApi:
     def search_cursor(self, url, search_cb):
         requests.get(url, hooks={'response': search_cb})
 
-    def get_download_url(self, uid):
-        requests.get(Utils.build_download_url(uid), headers=self.headers, hooks={'response': self.handle_download})
+    def download_model(self, uid):
+        skfb_model = get_sketchfab_model(uid)
+        if skfb_model.download_url:
+            # Check url sanity
+            if time.time() - skfb_model.time_url_requested < skfb_model.url_expires:
+                self.get_archive(skfb_model.download_url)
+            else:
+                print("Download url is outdated, requesting a new one")
+                skfb_model.download_url = None
+                skfb_model.url_expires = None
+                skfb_model.time_url_requested = None
+                requests.get(Utils.build_download_url(uid), headers=self.headers, hooks={'response': self.handle_download})
+        else:
+            requests.get(Utils.build_download_url(uid), headers=self.headers, hooks={'response': self.handle_download})
 
     def handle_download(self, r, *args, **kwargs):
-        if 'gltf' not in r.json():
+        if r.status_code != 200 or 'gltf' not in r.json():
+            print('Download not available for this model')
             return
 
         skfb = get_sketchfab_props()
         uid = get_uid_from_model_url(r.url)
-        current_model = skfb.search_results['current'][uid]
 
         gltf = r.json()['gltf']
-        current_model.download_link = gltf['url']
-        current_model.download_size = Utils.humanify_size(gltf['size'])
+        skfb_model = get_sketchfab_model(uid)
+        skfb_model.download_url = gltf['url']
+        skfb_model.time_url_requested = time.time()
+        skfb_model.url_expires = gltf['expires']
 
-    def get_archive(self, uid):
-        url = get_sketchfab_props().search_results['current'][uid].download_link
+        self.get_archive(gltf['url'])
+
+    def get_archive(self, url):
         if url is None:
             print('Url is None')
             return
 
         r = requests.get(url, stream=True)
+        uid = get_uid_from_model_url(url)
         temp_dir = os.path.join(Config.SKETCHFAB_MODEL_DIR, uid)
         if not os.path.exists(temp_dir):
             os.makedirs(temp_dir)
@@ -247,9 +267,8 @@ class SketchfabApi:
                 import traceback
                 print(traceback.format_exc())
         else:
-            skfb = get_sketchfab_props()
-            model = skfb.search_results['current'][uid]
-            skfb.skfb_api.get_download_url(uid)
+            print("Failed to download model (url might be invalid)")
+            model = get_sketchfab_model(uid)
             set_import_status("Import model ({})".format(model.download_size if model.download_size else 'fetching data'))
 
 
@@ -936,13 +955,6 @@ class ResultsPanel(View3DPanel, bpy.types.Panel):
                 props.skfb_api.request_model_info(model.uid)
                 model.info_requested = True
 
-            if not model.download_url_requested:
-                props.skfb_api.get_download_url(model.uid)
-                model.download_url_requested = True
-
-            if props.skfb_api.is_user_logged() and not model.download_link:
-                props.skfb_api.get_download_url(model.uid)
-
         draw_model_info(col, model, context)
 
 
@@ -989,15 +1001,22 @@ class SketchfabModel:
         self.vertex_count = json_data['vertexCount']
         self.face_count = json_data['faceCount']
 
+        if 'archives' in json_data and  'gltf' in json_data['archives']:
+            self.download_size = Utils.humanify_size(json_data['archives']['gltf']['size'])
+        else:
+            self.download_size = None
+
+        self.thumbnail_url = os.path.join(Config.SKETCHFAB_THUMB_DIR, '{}.jpeg'.format(self.uid))
+
+        # Model info request
         self.info_requested = False
         self.license = None
         self.animated = False
 
-        self.download_url_requested = False
-        self.download_size = None
-        self.download_link = None
-
-        self.thumbnail_url = os.path.join(Config.SKETCHFAB_THUMB_DIR, '{}.jpeg'.format(self.uid))
+        # Download url data
+        self.download_url = None
+        self.time_url_requested = None
+        self.url_expires = None
 
 
 class SketchfabDownloadModel(bpy.types.Operator):
@@ -1009,7 +1028,7 @@ class SketchfabDownloadModel(bpy.types.Operator):
 
     def execute(self, context):
         skfb_api = context.window_manager.sketchfab_browser.skfb_api
-        skfb_api.get_archive(self.model_uid)
+        skfb_api.download_model(self.model_uid)
         return {'FINISHED'}
 
 
