@@ -25,8 +25,8 @@ import json
 
 class Config:
     ADDON_NAME = 'io_sketchfab'
-    GITHUB_REPOSITORY_URL = 'https://github.com/sketchfab/gltf2-blender-importer'
-    GITHUB_REPOSITORY_API_URL = 'https://api.github.com/repos/sketchfab/gltf2-blender-importer'
+    GITHUB_REPOSITORY_URL = 'https://github.com/sketchfab/glTF-Blender-IO'
+    GITHUB_REPOSITORY_API_URL = 'https://api.github.com/repos/sketchfab/glTF-Blender-IO'
     SKETCHFAB_REPORT_URL = 'https://help.sketchfab.com/hc/en-us/requests/new?type=exporters&subject=Blender+Plugin'
 
     SKETCHFAB_URL = 'https://sketchfab.com'
