@@ -838,7 +838,7 @@ class LoginPanel(View3DPanel, bpy.types.Panel):
                 self.bl_label = "Sketchfab plugin v{} (up-to-date)".format(PLUGIN_VERSION)
             elif skfb.is_latest_version == 0:
                 self.bl_label = "Sketchfab plugin v{} (outdated)".format(PLUGIN_VERSION)
-                self.layout.operator('wm.skfb_new_version', text='New version available', icon='NEW')
+                self.layout.operator('wm.skfb_new_version', text='New version available', icon='CANCEL')
             elif skfb.is_latest_version == -2:
                 self.bl_label = "Sketchfab plugin v{}".format(PLUGIN_VERSION)
 
